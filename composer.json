@@ -1,0 +1,55 @@
+{
+  "name": "domainflow/container",
+  "description": "Dependency injection container package for PHP 8.3+",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "DomainFlow",
+      "homepage": "https://www.domainflow.dev"
+    }
+  ],
+  "require": {
+    "php": "^8.3 || ^8.4",
+    "psr/container": "^2.0",
+    "symfony/yaml": "^7.2"
+  },
+  "require-dev": {
+    "symfony/phpunit-bridge": "^7.2",
+    "friendsofphp/php-cs-fixer": "^3.69",
+    "phpstan/phpstan": "^2.1.5",
+    "phpstan/phpstan-deprecation-rules": "^2.0",
+    "phpunit/phpunit": "^12.0",
+    "nikic/php-parser": "^5.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "DomainFlow\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "DomainFlow\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "./vendor/bin/phpunit --testsuite=Unit -c phpunit.xml",
+    "test-integration": "./vendor/bin/phpunit --testsuite=Integration -c phpunit.xml",
+    "test-all": "./vendor/bin/phpunit -c phpunit.xml",
+    "code-coverage": [
+      "@putenv XDEBUG_MODE=coverage",
+      "./vendor/bin/phpunit -c phpunit.xml --testsuite=Unit --coverage-html=build/coverage"
+    ],
+    "phpstan": "./vendor/bin/phpstan analyse -c phpstan.neon",
+    "fix": [
+      "./vendor/bin/php-cs-fixer fix src tests --config=./php_cs.dist.php"
+    ]
+  },
+  "extra": {
+  },
+  "config": {
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "optimize-autoloader": true
+  }
+}
