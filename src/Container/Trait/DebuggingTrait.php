@@ -7,6 +7,10 @@ namespace DomainFlow\Container\Trait;
 use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionException;
+use ReflectionIntersectionType;
+use ReflectionNamedType;
+use ReflectionType;
+use ReflectionUnionType;
 
 /**
  * Trait DebuggingTrait
@@ -42,12 +46,33 @@ trait DebuggingTrait
             if ($constructor = $reflector->getConstructor()) {
                 foreach ($constructor->getParameters() as $param) {
                     $type = $param->getType();
-                    $dependencies[] = $type ? (string) $type : 'untyped';
+                    $dependencies[] = $type === null ? 'untyped' : $this->describeType($type);
                 }
             }
             $graph[$abstract] = $dependencies;
         }
 
         return $graph;
+    }
+
+    private function describeType(ReflectionType $type): string
+    {
+        if ($type instanceof ReflectionNamedType) {
+            return $type->getName();
+        }
+
+        if ($type instanceof ReflectionUnionType) {
+            return implode('|', array_map(
+                fn (ReflectionType $nestedType): string => $this->describeType($nestedType),
+                $type->getTypes()
+            ));
+        }
+
+        $intersectionTypes = $type instanceof ReflectionIntersectionType ? $type->getTypes() : [];
+
+        return implode('&', array_map(
+            fn (ReflectionType $nestedType): string => $this->describeType($nestedType),
+            $intersectionTypes
+        ));
     }
 }

@@ -12,7 +12,7 @@
   "require": {
     "php": "^8.3 || ^8.4",
     "psr/container": "^2.0",
-    "symfony/yaml": "^7.2"
+    "symfony/yaml": "^7.4.12 || ^8.0.12"
   },
   "require-dev": {
     "symfony/phpunit-bridge": "^7.2",
@@ -36,14 +36,34 @@
     "test": "./vendor/bin/phpunit --testsuite=Unit -c phpunit.xml",
     "test-integration": "./vendor/bin/phpunit --testsuite=Integration -c phpunit.xml",
     "test-all": "./vendor/bin/phpunit -c phpunit.xml",
-    "code-coverage": [
+    "test:coverage": [
       "@putenv XDEBUG_MODE=coverage",
-      "./vendor/bin/phpunit -c phpunit.xml --testsuite=Unit --coverage-html=build/coverage"
+      "./vendor/bin/phpunit -c phpunit.xml --coverage-html=build/coverage",
+      "@php tools/assert-full-line-coverage.php build/coverage/clover.xml"
     ],
-    "phpstan": "./vendor/bin/phpstan analyse -c phpstan.neon",
-    "fix": [
-      "./vendor/bin/php-cs-fixer fix src tests --config=./php_cs.dist.php"
+    "code-coverage": "@test:coverage",
+    "phpstan": "./vendor/bin/phpstan analyse -c phpstan.neon --memory-limit=1G",
+    "lint": "./vendor/bin/php-cs-fixer check src tests --config=./php_cs.dist.php --diff",
+    "format": "./vendor/bin/php-cs-fixer fix src tests --config=./php_cs.dist.php",
+    "fix": "@format",
+    "quality": [
+      "@composer validate --strict --no-check-publish --no-check-lock",
+      "@lint",
+      "@phpstan",
+      "@test:coverage",
+      "@composer audit"
     ]
+  },
+  "scripts-descriptions": {
+    "test": "Run the PHPUnit unit suite",
+    "test-integration": "Run the PHPUnit integration suite",
+    "test-all": "Run the complete PHPUnit suite",
+    "test:coverage": "Run the complete suite with line-coverage reporting",
+    "code-coverage": "Alias for test:coverage",
+    "phpstan": "Run static analysis",
+    "lint": "Check PHP formatting without modifying files",
+    "format": "Apply PHP formatting fixes",
+    "quality": "Run every mandatory package quality gate"
   },
   "extra": {
   },

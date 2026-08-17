@@ -86,8 +86,12 @@ final class CacheManagerTraitTest extends TestCase
      */
     public function test_closureToString_returns_consistent_unique_string(): void
     {
-        $closure1 = function () { return 'test1'; };
-        $closure2 = function () { return 'test2'; };
+        $closure1 = function () {
+            return 'test1';
+        };
+        $closure2 = function () {
+            return 'test2';
+        };
 
         $reflection = new ReflectionClass($this->dummy);
         $method = $reflection->getMethod('closureToString');

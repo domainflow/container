@@ -58,14 +58,7 @@ trait CallableResolutionTrait
         }
         if (is_array($callable) && count($callable) === 2) {
             [$classOrObject, $method] = $callable;
-            if (!is_string($method)) {
-                throw new ContainerException("Callable resolution error: method name must be a string.");
-            }
-            if (is_string($classOrObject) || is_object($classOrObject)) {
-                $refMethod = new ReflectionMethod($classOrObject, $method);
-            } else {
-                throw new InvalidArgumentException('Expected object or class name for ReflectionMethod.');
-            }
+            $refMethod = $this->reflectMethod($classOrObject, $method);
 
             $deps = [];
             foreach ($refMethod->getParameters() as $param) {
@@ -88,5 +81,18 @@ trait CallableResolutionTrait
             return $refFunc->invokeArgs($deps);
         }
         throw new ContainerException("Unsupported callable type: " . get_debug_type($callable));
+    }
+
+    private function reflectMethod(mixed $classOrObject, mixed $method): ReflectionMethod
+    {
+        if (!is_string($method)) {
+            throw new ContainerException("Callable resolution error: method name must be a string.");
+        }
+
+        if (!is_string($classOrObject) && !is_object($classOrObject)) {
+            throw new InvalidArgumentException('Expected object or class name for ReflectionMethod.');
+        }
+
+        return new ReflectionMethod($classOrObject, $method);
     }
 }
