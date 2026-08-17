@@ -9,6 +9,7 @@ use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 use Throwable;
 
 #[CoversNothing]
@@ -17,7 +18,7 @@ class ContainerCircularDependencyIntegrationTest extends TestCase
     /**
      * @throws ContainerException|NotFoundException|Throwable
      */
-    public function test_circular_dependencies_are_resolved_correctly(): void
+    public function test_circular_dependencies_throw_a_container_exception_with_the_resolution_chain(): void
     {
         $container = new Container();
 
@@ -26,25 +27,51 @@ class ContainerCircularDependencyIntegrationTest extends TestCase
         $container->bind(C::class);
         $container->bind(D::class);
 
-        ob_start();
-        try {
-            $aInstance = $container->make(A::class);
-            $bInstance = $container->make(B::class);
-            $cInstance = $container->make(C::class);
-            $dInstance = $container->make(D::class);
-        } finally {
-            ob_end_clean();
-        }
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('Circular dependency detected: ' . A::class . ' -> ' . B::class . ' -> ' . A::class . '.');
 
-        $this->assertInstanceOf(B::class, $aInstance->b, "A should contain an instance of B.");
-        $this->assertInstanceOf(A::class, $bInstance->a, "B should contain an instance of A.");
-        $this->assertInstanceOf(A::class, $cInstance->a, "C should contain an instance of A.");
-        $this->assertInstanceOf(B::class, $dInstance->b, "D should contain an instance of B.");
+        $container->make(A::class);
+    }
+
+    /**
+     * @throws ContainerException|NotFoundException|Throwable
+     */
+    public function test_scoped_circular_dependencies_throw_a_container_exception(): void
+    {
+        $container = new Container();
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('Circular dependency detected: ' . A::class . ' -> ' . B::class . ' -> ' . A::class . '.');
+
+        $container->scope('request', static function (Container $scope): void {
+            $scope->bind(A::class);
+            $scope->bind(B::class);
+            $scope->make(A::class);
+        });
+    }
+
+    /**
+     * @throws ContainerException|NotFoundException|Throwable
+     */
+    public function test_a_circular_failure_does_not_affect_another_container_instance(): void
+    {
+        $first = new Container();
+        $first->bind(A::class);
+        $first->bind(B::class);
+
+        try {
+            $first->make(A::class);
+            $this->fail('Expected a circular dependency to throw.');
+        } catch (ContainerException) {
+            $second = new Container();
+
+            $this->assertInstanceOf(stdClass::class, $second->make(stdClass::class));
+        }
     }
 }
 
 // dummy classes
-class A
+final class A
 {
     public string $name;
     public int $age;
@@ -56,7 +83,7 @@ class A
     }
 }
 
-class B
+final class B
 {
     public string $category;
     public float $price;

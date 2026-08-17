@@ -12,7 +12,6 @@ use DomainFlow\Container\Trait\ArrayAccessTrait;
 use DomainFlow\Container\Trait\BindingManagerTrait;
 use DomainFlow\Container\Trait\CacheManagerTrait;
 use DomainFlow\Container\Trait\CallableResolutionTrait;
-use DomainFlow\Container\Trait\CircularDependencyResolverTrait;
 use DomainFlow\Container\Trait\ContextualBindingTrait;
 use DomainFlow\Container\Trait\DebuggingTrait;
 use DomainFlow\Container\Trait\HookManagerTrait;
@@ -41,7 +40,6 @@ class Container implements ContainerInterface, ArrayAccess
     use TagManagerTrait;
     use CacheManagerTrait;
     use ReflectionBuilderTrait;
-    use CircularDependencyResolverTrait;
     use PsrContainerTrait;
     use ArrayAccessTrait;
     use ScopeTrait;
@@ -73,6 +71,13 @@ class Container implements ContainerInterface, ArrayAccess
      * @var array<string, bool>
      */
     public array $resolving = [];
+
+    /**
+     * Identifiers currently being resolved in call order.
+     *
+     * @var list<string>
+     */
+    protected array $resolutionStack = [];
 
     /**
      * Returns the singleton instance.
@@ -129,7 +134,10 @@ class Container implements ContainerInterface, ArrayAccess
         $abstract = $this->aliases[$abstract] ?? $abstract;
 
         if (isset($this->resolving[$abstract])) {
-            return $this->resolveCircularDependency($abstract, $parameters);
+            $cycleStart = array_search($abstract, $this->resolutionStack, true) ?: 0;
+            $cycle = [...array_slice($this->resolutionStack, $cycleStart), $abstract];
+
+            throw new ContainerException('Circular dependency detected: ' . implode(' -> ', $cycle) . '.');
         }
 
         foreach ($this->beforeResolveHooks as $hook) {
@@ -137,6 +145,7 @@ class Container implements ContainerInterface, ArrayAccess
         }
 
         $this->resolving[$abstract] = true;
+        $this->resolutionStack[] = $abstract;
         try {
 
             if (isset($this->instances[$abstract])) {
@@ -170,12 +179,10 @@ class Container implements ContainerInterface, ArrayAccess
 
             $this->cacheResolvedService($abstract, $instance);
 
-            unset($this->resolving[$abstract]);
-
             return $instance;
-        } catch (Throwable $e) {
+        } finally {
             unset($this->resolving[$abstract]);
-            throw $e;
+            array_pop($this->resolutionStack);
         }
     }
 
