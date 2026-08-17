@@ -137,6 +137,7 @@ trait ScopeTrait
     protected function resetScopeState(): void
     {
         $this->instances = [];
+        $this->resolvedServicesCache = [];
         $this->resolving = [];
         $this->resolutionStack = [];
     }

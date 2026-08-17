@@ -10,7 +10,7 @@ namespace DomainFlow\Tests\Unit\Dummy;
 class DummyContextual
 {
     public $dep;
-    public function __construct(DummyAlternateNoConstructor $dep)
+    public function __construct(DummyNoConstructor $dep)
     {
         $this->dep = $dep;
     }

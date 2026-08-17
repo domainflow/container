@@ -7,7 +7,6 @@ namespace DomainFlow\Container\Trait;
 use Closure;
 use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
-use InvalidArgumentException;
 use ReflectionException;
 use ReflectionFunction;
 use ReflectionMethod;
@@ -44,7 +43,7 @@ trait CallableResolutionTrait
      * @throws Throwable|ContainerException|NotFoundException|ReflectionException
      */
     protected function doCall(
-        mixed $callable,
+        callable $callable,
         array $parameters = []
     ): mixed {
         if (is_object($callable) && method_exists($callable, '__invoke')) {
@@ -58,7 +57,7 @@ trait CallableResolutionTrait
         }
         if (is_array($callable) && count($callable) === 2) {
             [$classOrObject, $method] = $callable;
-            $refMethod = $this->reflectMethod($classOrObject, $method);
+            $refMethod = new ReflectionMethod($classOrObject, $method);
 
             $deps = [];
             foreach ($refMethod->getParameters() as $param) {
@@ -71,28 +70,17 @@ trait CallableResolutionTrait
 
             return $refMethod->invokeArgs($instance, $deps);
         }
-        if (is_string($callable) || $callable instanceof Closure) {
-            $refFunc = new ReflectionFunction($callable);
-            $deps = [];
-            foreach ($refFunc->getParameters() as $param) {
-                $deps[] = $this->resolveParameter($param, $parameters, 'ClosureOrFunction');
-            }
 
-            return $refFunc->invokeArgs($deps);
-        }
-        throw new ContainerException("Unsupported callable type: " . get_debug_type($callable));
-    }
-
-    private function reflectMethod(mixed $classOrObject, mixed $method): ReflectionMethod
-    {
-        if (!is_string($method)) {
-            throw new ContainerException("Callable resolution error: method name must be a string.");
+        // PHP's `callable` type guarantees the only remaining shape here is a
+        // function name or "Class::method" string; an invokable object already
+        // matched the first branch above.
+        assert(is_string($callable) || $callable instanceof Closure);
+        $refFunc = new ReflectionFunction($callable);
+        $deps = [];
+        foreach ($refFunc->getParameters() as $param) {
+            $deps[] = $this->resolveParameter($param, $parameters, 'ClosureOrFunction');
         }
 
-        if (!is_string($classOrObject) && !is_object($classOrObject)) {
-            throw new InvalidArgumentException('Expected object or class name for ReflectionMethod.');
-        }
-
-        return new ReflectionMethod($classOrObject, $method);
+        return $refFunc->invokeArgs($deps);
     }
 }

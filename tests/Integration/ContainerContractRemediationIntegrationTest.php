@@ -58,6 +58,7 @@ final class ContainerContractRemediationIntegrationTest extends TestCase
             return null;
         });
         $scope->tag('scope.dependencies', [ScopeDependency::class]);
+        $scope->cacheResolvedService('scope.legacy', new stdClass());
 
         $first = $scope->make('scope.dependency');
         $firstConsumer = $scope->make(ScopeConsumer::class);
@@ -67,13 +68,14 @@ final class ContainerContractRemediationIntegrationTest extends TestCase
 
         $container->resetScope('request');
 
+        $this->assertSame([], $scope->cacheResolvedServices());
         $second = $scope->make('scope.dependency');
         $secondConsumer = $scope->make(ScopeConsumer::class);
         $this->assertNotSame($first, $second);
         $this->assertInstanceOf(ScopeLocalDependency::class, $second);
         $this->assertInstanceOf(ScopeContextualDependency::class, $secondConsumer->dependency);
         $this->assertInstanceOf(ScopeLocalDependency::class, $scope->getByTag('scope.dependencies')[ScopeDependency::class]);
-        $this->assertGreaterThanOrEqual(6, $hookCalls);
+        $this->assertSame(6, $hookCalls);
         $this->assertInstanceOf(ScopeParentDependency::class, $container->make(ScopeDependency::class));
         $this->assertInstanceOf(ScopeParentDependency::class, $scope->make('parent.dependency'));
     }
@@ -81,19 +83,29 @@ final class ContainerContractRemediationIntegrationTest extends TestCase
     public function test_dispose_scope_removes_all_local_customization(): void
     {
         $container = new Container();
-        $container->scope('request', static function (Container $scope): void {
+        $hookCalls = 0;
+        $container->scope('request', static function (Container $scope) use (&$hookCalls): void {
             $scope->singleton(ScopeDependency::class, ScopeLocalDependency::class);
             $scope->alias(ScopeDependency::class, 'scope.dependency');
             $scope->addContextualBinding(ScopeConsumer::class, ScopeDependency::class, ScopeContextualDependency::class);
-            $scope->addAfterResolve(static fn (): null => null);
+            $scope->addAfterResolve(static function () use (&$hookCalls): null {
+                ++$hookCalls;
+
+                return null;
+            });
             $scope->tag('scope.dependencies', [ScopeDependency::class]);
+            $scope->make('scope.dependency');
         });
+
+        $this->assertSame(1, $hookCalls);
 
         $container->disposeScope('request');
         $freshScope = $container->scope('request', static fn (Container $scope): Container => $scope);
 
         $this->assertFalse($freshScope->has('scope.dependency'));
         $this->assertSame([], $freshScope->getByTag('scope.dependencies'));
+        $freshScope->make(AutowireableUnboundEntry::class);
+        $this->assertSame(1, $hookCalls);
         $this->expectException(NotFoundException::class);
         $freshScope->make(ScopeConsumer::class);
     }

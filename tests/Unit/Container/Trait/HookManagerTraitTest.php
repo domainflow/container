@@ -5,59 +5,74 @@ declare(strict_types=1);
 namespace DomainFlow\Tests\Unit\Container\Trait;
 
 use DomainFlow\Container;
-use DomainFlow\Tests\Unit\Dummy\DummyHookManager;
+use DomainFlow\Container\Exception\ContainerException;
+use DomainFlow\Container\Exception\NotFoundException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionException;
-use ReflectionProperty;
+use stdClass;
+use Throwable;
 
 #[CoversClass(Container::class)]
 final class HookManagerTraitTest extends TestCase
 {
-    private DummyHookManager $dummy;
+    private Container $container;
 
     protected function setUp(): void
     {
-        $this->dummy = new DummyHookManager();
+        $this->container = new Container();
     }
 
     /**
-     * @throws ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException
      */
-    public function test_addBeforeResolve_adds_hook(): void
+    public function test_addBeforeResolve_hook_runs_before_make_resolves(): void
     {
-        $hook = function (string $concrete, array $params): void {
-            // Dummy hook for testing.
-        };
+        $this->container->bind('TestService', fn () => new stdClass());
 
-        $this->dummy->addBeforeResolve($hook);
+        $calls = [];
+        $this->container->addBeforeResolve(function (string $concrete, array $params) use (&$calls): void {
+            $calls[] = $concrete;
+        });
 
-        $refProperty = new ReflectionProperty($this->dummy, 'beforeResolveHooks');
+        $this->container->make('TestService');
 
-        $hooks = $refProperty->getValue($this->dummy);
-
-        $this->assertIsArray($hooks);
-        $this->assertCount(1, $hooks);
-        $this->assertSame($hook, $hooks[0]);
+        $this->assertSame(['TestService'], $calls);
     }
 
     /**
-     * @throws ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException
      */
-    public function test_addAfterResolve_adds_hook(): void
+    public function test_addBeforeResolve_supports_multiple_hooks_in_registration_order(): void
     {
-        $hook = function (object $instance, string $concrete, array $params): ?object {
-            return null;
-        };
+        $this->container->bind('TestService', fn () => new stdClass());
 
-        $this->dummy->addAfterResolve($hook);
+        $calls = [];
+        $this->container->addBeforeResolve(function () use (&$calls): void {
+            $calls[] = 'first';
+        });
+        $this->container->addBeforeResolve(function () use (&$calls): void {
+            $calls[] = 'second';
+        });
 
-        $refProperty = new ReflectionProperty($this->dummy, 'afterResolveHooks');
+        $this->container->make('TestService');
 
-        $hooks = $refProperty->getValue($this->dummy);
+        $this->assertSame(['first', 'second'], $calls);
+    }
 
-        $this->assertIsArray($hooks);
-        $this->assertCount(1, $hooks);
-        $this->assertSame($hook, $hooks[0]);
+    /**
+     * @throws NotFoundException|Throwable|ContainerException
+     */
+    public function test_addAfterResolve_hook_can_replace_the_resolved_instance(): void
+    {
+        $this->container->bind('TestService', fn () => new stdClass());
+        $replacement = new stdClass();
+
+        $this->container->addAfterResolve(function (object $instance, string $concrete) use ($replacement): ?object {
+            return $concrete === 'TestService' ? $replacement : null;
+        });
+
+        $instance = $this->container->make('TestService');
+
+        $this->assertSame($replacement, $instance);
     }
 }

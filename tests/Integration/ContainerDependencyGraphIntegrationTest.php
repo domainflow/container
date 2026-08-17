@@ -30,9 +30,49 @@ class ContainerDependencyGraphIntegrationTest extends TestCase
         $this->assertArrayHasKey(ServiceB::class, $graph);
         $this->assertArrayHasKey(ServiceC::class, $graph);
 
-        $this->assertSame([ServiceB::class], $graph[ServiceA::class], "ServiceA should depend on ServiceB.");
-        $this->assertSame([ServiceC::class], $graph[ServiceB::class], "ServiceB should depend on ServiceC.");
-        $this->assertSame([], $graph[ServiceC::class], "ServiceC should have no dependencies.");
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => [ServiceB::class]],
+            $graph[ServiceA::class],
+            'ServiceA should depend on ServiceB.'
+        );
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => [ServiceC::class]],
+            $graph[ServiceB::class],
+            'ServiceB should depend on ServiceC.'
+        );
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => []],
+            $graph[ServiceC::class],
+            'ServiceC should have no dependencies.'
+        );
+    }
+
+    /**
+     * @throws ReflectionException|ContainerException
+     */
+    public function test_dependency_graph_does_not_open_a_connection_registered_via_a_dynamic_binding(): void
+    {
+        $container = new Container();
+        $connectionOpened = false;
+
+        $container->bind(ServiceA::class);
+        $container->singleton(FakeConnection::class, function () use (&$connectionOpened): FakeConnection {
+            $connectionOpened = true;
+
+            return new FakeConnection();
+        });
+
+        $graph = $container->generateDependencyGraph();
+
+        $this->assertFalse($connectionOpened, 'A diagnostic call must not open a connection owned by a dynamic factory.');
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => [ServiceB::class]],
+            $graph[ServiceA::class]
+        );
+        $this->assertSame(
+            ['kind' => 'dynamic', 'dependencies' => []],
+            $graph[FakeConnection::class]
+        );
     }
 }
 
@@ -54,5 +94,9 @@ class ServiceB
 }
 
 class ServiceC
+{
+}
+
+class FakeConnection
 {
 }

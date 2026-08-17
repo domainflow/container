@@ -155,13 +155,13 @@ trait ReflectionBuilderTrait
         if ($type instanceof ReflectionUnionType) {
             return $this->resolveUnionType($type, $param, $parentClass);
         }
-        if ($type instanceof ReflectionIntersectionType) {
-            return $this->resolveIntersectionType($type, $param, $parentClass);
-        }
-        $paramName = $param->getName();
-        throw new ContainerException(
-            "Unable to resolve union-typed parameter [\$$paramName] in [$parentClass]. Tried types: " . "."
-        );
+
+        // ReflectionParameter::getType() returns only ReflectionNamedType,
+        // ReflectionUnionType, ReflectionIntersectionType, or null; a null type
+        // is filtered out by the caller, so this is the only remaining case.
+        assert($type instanceof ReflectionIntersectionType);
+
+        return $this->resolveIntersectionType($type, $param, $parentClass);
     }
 
     /**
@@ -310,10 +310,9 @@ trait ReflectionBuilderTrait
         );
         $classType = null;
         $interfaceTypes = [];
+        // Intersection type members are always class/interface names; PHP's
+        // grammar does not allow a builtin type inside an intersection type.
         foreach ($subTypes as $t) {
-            if ($t->isBuiltin()) {
-                continue;
-            }
             $name = $t->getName();
             if (class_exists($name)) {
                 $classType = $name;

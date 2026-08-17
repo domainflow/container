@@ -18,8 +18,11 @@ use DomainFlow\Tests\Unit\Dummy\DummyContextualNamed;
 use DomainFlow\Tests\Unit\Dummy\DummyFinalPrivateInject;
 use DomainFlow\Tests\Unit\Dummy\DummyInject;
 use DomainFlow\Tests\Unit\Dummy\DummyInterfaceA;
+use DomainFlow\Tests\Unit\Dummy\DummyInterfaceC;
 use DomainFlow\Tests\Unit\Dummy\DummyNoConstructor;
 use DomainFlow\Tests\Unit\Dummy\DummyNotFound;
+use DomainFlow\Tests\Unit\Dummy\DummyOnlyC;
+use DomainFlow\Tests\Unit\Dummy\DummyOnlyCAndD;
 use DomainFlow\Tests\Unit\Dummy\DummyOptionalInterfaceDep;
 use DomainFlow\Tests\Unit\Dummy\DummyOptionalUntyped;
 use DomainFlow\Tests\Unit\Dummy\DummyProtectedInject;
@@ -32,22 +35,17 @@ use DomainFlow\Tests\Unit\Dummy\DummyVariadicConstructor;
 use DomainFlow\Tests\Unit\Dummy\DummyWithConstructor;
 use DomainFlow\Tests\Unit\Dummy\DummyWithIntersectionConstructor;
 use DomainFlow\Tests\Unit\Dummy\DummyWithIntersectionConstructorFail;
+use DomainFlow\Tests\Unit\Dummy\DummyWithIntersectionOfClassAndInterface;
+use DomainFlow\Tests\Unit\Dummy\DummyWithIntersectionUnsatisfiedInterface;
+use DomainFlow\Tests\Unit\Dummy\DummyWithOptionalIntersection;
 use DomainFlow\Tests\Unit\Dummy\DummyWithOptionalUnion;
 use DomainFlow\Tests\Unit\Dummy\DummyWithUnionConstructor;
 use DomainFlow\Tests\Unit\Dummy\DummyWithUnionConstructor2;
 use DomainFlow\Tests\Unit\Dummy\DummyWithUnionContextual;
 use DomainFlow\Tests\Unit\Dummy\DummyWithUnresolvableUnion;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
 use ReflectionException;
-use ReflectionIntersectionType;
-use ReflectionMethod;
-use ReflectionNamedType;
-use ReflectionParameter;
-use ReflectionProperty;
-use ReflectionType;
-use ReflectionUnionType;
 use Throwable;
 
 #[CoversClass(Container::class)]
@@ -309,22 +307,6 @@ final class ReflectionBuilderTraitTest extends TestCase
     }
 
     /**
-     * @throws Exception|ReflectionException
-     */
-    public function test_resolveType_with_invalid_type_throws_exception(): void
-    {
-        $fakeType = $this->createMock(ReflectionType::class);
-        $mockParam = $this->createMock(ReflectionParameter::class);
-        $mockParam->method('getType')->willReturn($fakeType);
-        $mockParam->method('getName')->willReturn('fakeParam');
-
-        $this->expectException(ContainerException::class);
-        $method = new ReflectionMethod($this->container, 'resolveType');
-
-        $method->invoke($this->container, $fakeType, $mockParam, 'DummyParent', []);
-    }
-
-    /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveNamedType_contextual_binding_correct(): void
@@ -387,113 +369,58 @@ final class ReflectionBuilderTraitTest extends TestCase
     }
 
     /**
-     * @throws Exception|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_resolveIntersectionType_with_builtin_in_subtypes(): void
+    public function test_resolveIntersectionType_returns_instance_satisfying_all_members(): void
     {
-        $fakeNamedType = $this->createMock(ReflectionNamedType::class);
-        $fakeNamedType->method('isBuiltin')->willReturn(true);
+        $instance = $this->container->build(DummyWithIntersectionOfClassAndInterface::class);
 
-        $validNamedType = $this->createMock(ReflectionNamedType::class);
-        $validNamedType->method('isBuiltin')->willReturn(false);
-        $validNamedType->method('getName')->willReturn(DummyNoConstructor::class);
-        $intersectionType = $this->getMockBuilder(ReflectionIntersectionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $intersectionType->method('getTypes')->willReturn([$fakeNamedType, $validNamedType]);
-
-        $mockParam = $this->createMock(ReflectionParameter::class);
-        $mockParam->method('getName')->willReturn('param');
-        $mockParam->method('isOptional')->willReturn(false);
-
-        // Pre-cache an instance for DummyNoConstructor.
-        $instance = new DummyNoConstructor();
-        $this->container->instance(DummyNoConstructor::class, $instance);
-
-        $method = new ReflectionMethod($this->container, 'resolveIntersectionType');
-
-        $result = $method->invoke($this->container, $intersectionType, $mockParam, 'DummyParent');
-        $this->assertSame($instance, $result);
+        $this->assertInstanceOf(DummyOnlyC::class, $instance->dependency);
+        $this->assertInstanceOf(DummyInterfaceC::class, $instance->dependency);
     }
 
     /**
-     * @throws Exception|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveIntersectionType_make_non_object_throws_exception(): void
     {
-        $validNamedType = $this->createMock(ReflectionNamedType::class);
-        $validNamedType->method('isBuiltin')->willReturn(false);
-        $validNamedType->method('getName')->willReturn('NonExistentClass');
-        $intersectionType = $this->getMockBuilder(ReflectionIntersectionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $intersectionType->method('getTypes')->willReturn([$validNamedType]);
-
-        $mockParam = $this->createMock(ReflectionParameter::class);
-        $mockParam->method('getName')->willReturn('param');
-        $mockParam->method('isOptional')->willReturn(false);
-
-        $containerMock = $this->getMockBuilder(DummyBindingManagerB::class)
-            ->onlyMethods(['make'])
-            ->getMock();
-        $containerMock->method('make')->willReturn('notAnObject');
-
-        $method = new ReflectionMethod($containerMock, 'resolveIntersectionType');
+        $container = new class() extends DummyBindingManagerB {
+            public function make(string $abstract, array $parameters = []): string
+            {
+                return 'notAnObject';
+            }
+        };
 
         $this->expectException(ContainerException::class);
-        $method->invoke($containerMock, $intersectionType, $mockParam, 'DummyParent');
+        $this->expectExceptionMessage(
+            "Resolved dependency for [" . DummyOnlyC::class . "] is not an object."
+        );
+
+        $container->build(DummyWithIntersectionOfClassAndInterface::class);
     }
 
     /**
-     * @throws Exception|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveIntersectionType_unsatisfied_interfaces_throws_exception(): void
     {
-        $classType = $this->createMock(ReflectionNamedType::class);
-        $classType->method('isBuiltin')->willReturn(false);
-        $classType->method('getName')->willReturn(DummyNoConstructor::class);
-
-        $interfaceType = $this->createMock(ReflectionNamedType::class);
-        $interfaceType->method('isBuiltin')->willReturn(false);
-        $interfaceType->method('getName')->willReturn(DummyInterfaceA::class);
-
-        $intersectionType = $this->getMockBuilder(ReflectionIntersectionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $intersectionType->method('getTypes')->willReturn([$classType, $interfaceType]);
-
-        $mockParam = $this->createMock(ReflectionParameter::class);
-        $mockParam->method('getName')->willReturn('param');
-        $mockParam->method('isOptional')->willReturn(false);
-
-        $instance = new DummyNoConstructor();
-        $this->container->instance(DummyNoConstructor::class, $instance);
-
-        $method = new ReflectionMethod($this->container, 'resolveIntersectionType');
-
         $this->expectException(ContainerException::class);
-        $method->invoke($this->container, $intersectionType, $mockParam, 'DummyParent');
+        $this->expectExceptionMessage(
+            "Instance of class [" . DummyNoConstructor::class . "] does not satisfy intersection type. Missing: "
+            . DummyInterfaceA::class . "."
+        );
+
+        $this->container->build(DummyWithIntersectionUnsatisfiedInterface::class);
     }
 
     /**
-     * @throws Exception|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveIntersectionType_optional_returns_default(): void
     {
-        $intersectionType = $this->getMockBuilder(ReflectionIntersectionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $intersectionType->method('getTypes')->willReturn([]);
+        $instance = $this->container->build(DummyWithOptionalIntersection::class);
 
-        $mockParam = $this->createMock(ReflectionParameter::class);
-        $mockParam->method('getName')->willReturn('param');
-        $mockParam->method('isOptional')->willReturn(true);
-        $mockParam->method('getDefaultValue')->willReturn('defaultIntersection');
-
-        $method = new ReflectionMethod($this->container, 'resolveIntersectionType');
-
-        $result = $method->invoke($this->container, $intersectionType, $mockParam, 'DummyParent');
-        $this->assertSame('defaultIntersection', $result);
+        $this->assertInstanceOf(DummyOnlyCAndD::class, $instance->dependency);
     }
 
     /**
@@ -515,59 +442,26 @@ final class ReflectionBuilderTraitTest extends TestCase
     }
 
     /**
-     * @throws Throwable|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveUnionType_contextual_binding_direct(): void
     {
-        $fakeNamedType = $this->createMock(ReflectionNamedType::class);
-        $fakeNamedType->method('isBuiltin')->willReturn(false);
-        $fakeNamedType->method('getName')->willReturn(DummyUnionA::class);
-
-        $fakeUnionType = $this->getMockBuilder(ReflectionUnionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $fakeUnionType->method('getTypes')->willReturn([$fakeNamedType]);
-
-        $fakeParam = $this->createMock(ReflectionParameter::class);
-        $fakeParam->method('getName')->willReturn('dependency');
-        $fakeParam->method('isOptional')->willReturn(false);
-
-        $parentClass = DummyWithUnionContextual::class;
         $this->container->addContextualBinding(
-            $parentClass,
+            DummyWithUnionContextual::class,
             DummyUnionA::class,
             DummyUnionB::class
         );
 
-        $method = new ReflectionMethod($this->container, 'resolveUnionType');
+        $instance = $this->container->build(DummyWithUnionContextual::class);
 
-        $result = $method->invoke($this->container, $fakeUnionType, $fakeParam, $parentClass);
-
-        $this->assertInstanceOf(DummyUnionB::class, $result);
+        $this->assertInstanceOf(DummyUnionB::class, $instance->dependency);
     }
 
     /**
-     * @throws Exception|ReflectionException
+     * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
     public function test_resolveUnionType_detects_ambiguous_autowireable_candidates(): void
     {
-        $fakeNamedTypeA = $this->createMock(ReflectionNamedType::class);
-        $fakeNamedTypeA->method('isBuiltin')->willReturn(false);
-        $fakeNamedTypeA->method('getName')->willReturn(DummyUnionA::class);
-
-        $fakeNamedTypeB = $this->createMock(ReflectionNamedType::class);
-        $fakeNamedTypeB->method('isBuiltin')->willReturn(false);
-        $fakeNamedTypeB->method('getName')->willReturn(DummyUnionB::class);
-
-        $fakeUnionType = $this->getMockBuilder(ReflectionUnionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $fakeUnionType->method('getTypes')->willReturn([$fakeNamedTypeA, $fakeNamedTypeB]);
-
-        $fakeParam = $this->createMock(ReflectionParameter::class);
-        $fakeParam->method('getName')->willReturn('dependency');
-        $fakeParam->method('isOptional')->willReturn(false);
-
         $container = new class() extends DummyBindingManagerB {
             public function has(string $id): bool
             {
@@ -575,65 +469,11 @@ final class ReflectionBuilderTraitTest extends TestCase
             }
         };
 
-        $parentClass = DummyWithUnionContextual::class;
-
-        $method = new ReflectionMethod($container, 'resolveUnionType');
-
         $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Ambiguous union-typed parameter [\$dependency] in [$parentClass]");
+        $this->expectExceptionMessage(
+            "Ambiguous union-typed parameter [\$dependency] in [" . DummyWithUnionContextual::class . "]"
+        );
 
-        $method->invoke($container, $fakeUnionType, $fakeParam, $parentClass);
+        $container->build(DummyWithUnionContextual::class);
     }
-
-    /**
-     * @throws Exception|ReflectionException
-     */
-    public function test_resolveIntersectionType_throws_if_make_returns_non_object(): void
-    {
-        $validClassType = $this->createMock(ReflectionNamedType::class);
-        $validClassType->method('isBuiltin')->willReturn(false);
-        $validClassType->method('getName')->willReturn(DummyNoConstructor::class);
-
-        $interfaceType = $this->createMock(ReflectionNamedType::class);
-        $interfaceType->method('isBuiltin')->willReturn(false);
-        $interfaceType->method('getName')->willReturn(DummyInterfaceA::class);
-
-        $fakeIntersectionType = $this->getMockBuilder(ReflectionIntersectionType::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $fakeIntersectionType->method('getTypes')->willReturn([$validClassType, $interfaceType]);
-
-        $fakeParam = $this->createMock(ReflectionParameter::class);
-        $fakeParam->method('getName')->willReturn('dependency');
-        $fakeParam->method('isOptional')->willReturn(false);
-
-        $containerMock = $this->getMockBuilder(DummyBindingManagerB::class)
-            ->onlyMethods(['make'])
-            ->getMock();
-        $containerMock->method('make')->willReturn('invalid_non_object');
-
-        $method = new ReflectionMethod($containerMock, 'resolveIntersectionType');
-
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Resolved dependency for [DomainFlow\Tests\Unit\Dummy\DummyNoConstructor] is not an object.");
-
-        $method->invoke($containerMock, $fakeIntersectionType, $fakeParam, 'DummyParent');
-    }
-
-    /**
-     * @throws ReflectionException
-     */
-    public function test_setUnionTypePriority_stores_priority_list(): void
-    {
-        $priorityList = ['TypeA', 'TypeB', 'TypeC'];
-        $this->container->setUnionTypePriority('SomeClass::$param', $priorityList);
-
-        $refProperty = new ReflectionProperty($this->container, 'unionTypePriority');
-
-        $storedPriorities = $refProperty->getValue($this->container);
-
-        $this->assertArrayHasKey('SomeClass::$param', $storedPriorities);
-        $this->assertSame($priorityList, $storedPriorities['SomeClass::$param']);
-    }
-
 }

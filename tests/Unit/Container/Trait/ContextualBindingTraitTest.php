@@ -6,56 +6,67 @@ namespace DomainFlow\Tests\Unit\Container\Trait;
 
 use DomainFlow\Container;
 use DomainFlow\Container\ContextualBindingBuilder;
-use DomainFlow\Tests\Unit\Dummy\DummyContextualBinding;
+use DomainFlow\Container\Exception\ContainerException;
+use DomainFlow\Container\Exception\NotFoundException;
+use DomainFlow\Tests\Unit\Dummy\DummyAlternateNoConstructor;
+use DomainFlow\Tests\Unit\Dummy\DummyContextualNamed;
+use DomainFlow\Tests\Unit\Dummy\DummyNoConstructor;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
+use Throwable;
 
 #[CoversClass(Container::class)]
 #[CoversClass(ContextualBindingBuilder::class)]
 final class ContextualBindingTraitTest extends TestCase
 {
-    private DummyContextualBinding $dummy;
     private Container $container;
 
-    /**
-     * @throws Exception
-     */
     protected function setUp(): void
     {
-        $this->dummy = new DummyContextualBinding();
-        $this->container = $this->createMock(Container::class);
+        $this->container = new Container();
     }
 
-    public function test_addContextualBinding_creates_binding_when_not_set(): void
+    /**
+     * @throws NotFoundException|Throwable|ContainerException
+     */
+    public function test_addContextualBinding_overrides_resolution_for_the_declaring_class(): void
     {
-        $concrete = 'MyConcrete';
-        $abstract = 'MyAbstract';
-        $implementation = 'MyImplementation';
-        $this->dummy->addContextualBinding($concrete, $abstract, $implementation);
+        $this->container->addContextualBinding(
+            DummyContextualNamed::class,
+            DummyNoConstructor::class,
+            DummyAlternateNoConstructor::class
+        );
 
-        $this->assertArrayHasKey($concrete, $this->dummy->contextual);
-        $this->assertArrayHasKey($abstract, $this->dummy->contextual[$concrete]);
-        $this->assertSame($implementation, $this->dummy->contextual[$concrete][$abstract]);
+        $instance = $this->container->build(DummyContextualNamed::class);
+
+        $this->assertInstanceOf(DummyAlternateNoConstructor::class, $instance->dep);
     }
 
-    public function test_addContextualBinding_overwrites_existing_binding(): void
+    /**
+     * @throws NotFoundException|Throwable|ContainerException
+     */
+    public function test_addContextualBinding_overwrites_an_existing_binding(): void
     {
-        $concrete = 'MyConcrete';
-        $abstract = 'MyAbstract';
-        $initialImplementation = 'InitialImplementation';
-        $this->dummy->addContextualBinding($concrete, $abstract, $initialImplementation);
+        $this->container->addContextualBinding(
+            DummyContextualNamed::class,
+            DummyNoConstructor::class,
+            DummyAlternateNoConstructor::class
+        );
+        $this->container->addContextualBinding(
+            DummyContextualNamed::class,
+            DummyNoConstructor::class,
+            DummyNoConstructor::class
+        );
 
-        $newImplementation = 'NewImplementation';
-        $this->dummy->addContextualBinding($concrete, $abstract, $newImplementation);
+        $instance = $this->container->build(DummyContextualNamed::class);
 
-        $this->assertSame($newImplementation, $this->dummy->contextual[$concrete][$abstract]);
+        $this->assertNotInstanceOf(DummyAlternateNoConstructor::class, $instance->dep);
+        $this->assertInstanceOf(DummyNoConstructor::class, $instance->dep);
     }
 
     public function test_when_returns_ContextualBindingBuilder(): void
     {
-        $container = new Container();
-        $builder = $container->when('SomeClass');
+        $builder = $this->container->when('SomeClass');
 
         $this->assertInstanceOf(ContextualBindingBuilder::class, $builder);
     }
