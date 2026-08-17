@@ -393,28 +393,11 @@ trait ReflectionBuilderTrait
                         $boundSetter = Closure::bind($setter, $instance, $refClass->getName());
                         $boundSetter($dependency);
                     } else {
-                        $original = $property->isPublic();
-                        $this->discard(fn () => $property->setAccessible(true));
                         $property->setValue($instance, $dependency);
-                        if (!$original) {
-                            $this->discard(fn () => $property->setAccessible(false));
-                        }
                     }
                 }
             }
         }
-    }
-
-    /**
-     * Discard the result of a callable.
-     *
-     * @param callable(): void $callable
-     * @return void
-     */
-    private function discard(
-        callable $callable
-    ): void {
-        $callable();
     }
 
     /**
