@@ -29,7 +29,7 @@ lazy relationship is genuinely required.
 
 ## ⚙️ Requirements
 
-- **PHP 8.3+**
+- **PHP 8.4 or 8.5**
 
 ---
 
