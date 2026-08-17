@@ -1,4 +1,4 @@
-[![Tests](https://github.com/domainflow/container/actions/workflows/tests.yml/badge.svg)](https://github.com/domainflow/uuid/actions/workflows/tests.yml)
+[![Tests](https://github.com/domainflow/container/actions/workflows/tests.yml/badge.svg)](https://github.com/domainflow/container/actions/workflows/tests.yml)
 ![Packagist Version](https://img.shields.io/packagist/v/domainflow/container)
 ![PHP Version](https://img.shields.io/packagist/php-v/domainflow/container)
 ![License](https://img.shields.io/github/license/domainflow/container)

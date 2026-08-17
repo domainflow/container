@@ -11,8 +11,7 @@
   ],
   "require": {
     "php": "^8.4",
-    "psr/container": "^2.0",
-    "symfony/yaml": "^7.4.12 || ^8.0.12"
+    "psr/container": "^2.0"
   },
   "require-dev": {
     "symfony/phpunit-bridge": "^7.2",
