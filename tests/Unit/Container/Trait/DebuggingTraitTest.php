@@ -8,8 +8,6 @@ use DomainFlow\Container;
 use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Tests\Unit\Dummy\DummyInterfaceA;
 use DomainFlow\Tests\Unit\Dummy\DummyInterfaceB;
-use DomainFlow\Tests\Unit\Dummy\DummyIntersection;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionException;
@@ -28,39 +26,47 @@ final class DebuggingTraitTest extends TestCase
     /**
      * @throws ReflectionException|ContainerException
      */
-    public function test_generateDependencyGraph_returns_correct_structure(): void
+    public function test_generateDependencyGraph_does_not_invoke_closure_factories(): void
     {
-        $this->container->bind('ServiceA', fn () => new stdClass());
-        $this->container->bind('ServiceB', fn () => new stdClass());
+        $invoked = false;
+        $this->container->bind('ServiceA', function () use (&$invoked) {
+            $invoked = true;
+
+            return new stdClass();
+        });
 
         $graph = $this->container->generateDependencyGraph();
 
+        $this->assertFalse($invoked, 'generateDependencyGraph() must not execute a binding factory.');
         $this->assertArrayHasKey('ServiceA', $graph);
-        $this->assertArrayHasKey('ServiceB', $graph);
-        $this->assertIsArray($graph['ServiceA']);
-        $this->assertIsArray($graph['ServiceB']);
     }
 
     /**
      * @throws ReflectionException|ContainerException
      */
-    public function test_generateDependencyGraph_includes_constructor_parameters(): void
+    public function test_generateDependencyGraph_reports_closure_bindings_as_dynamic(): void
     {
-        $this->container->bind('TestService', function () {
-            return new class('test', 123) {
-                public function __construct(
-                    string $param1,
-                    int $param2
-                ) {
-                }
-            };
-        });
+        $this->container->bind('ServiceA', fn () => new stdClass());
 
         $graph = $this->container->generateDependencyGraph();
 
-        $this->assertArrayHasKey('TestService', $graph);
-        $this->assertContains('string', $graph['TestService']);
-        $this->assertContains('int', $graph['TestService']);
+        $this->assertSame(['kind' => 'dynamic', 'dependencies' => []], $graph['ServiceA']);
+    }
+
+    /**
+     * @throws ReflectionException|ContainerException
+     */
+    public function test_generateDependencyGraph_introspects_class_string_bindings_without_instantiating(): void
+    {
+        $this->container->bind('TestService', DummyConstructedWithSentinel::class);
+
+        $graph = $this->container->generateDependencyGraph();
+
+        $this->assertSame(0, DummyConstructedWithSentinel::$constructedCount, 'The class-string binding must not be instantiated.');
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => ['string', 'int']],
+            $graph['TestService']
+        );
     }
 
     /**
@@ -68,17 +74,11 @@ final class DebuggingTraitTest extends TestCase
      */
     public function test_generateDependencyGraph_preserves_union_type_representation(): void
     {
-        $this->container->bind('UnionService', function () {
-            return new class('test') {
-                public function __construct(string|int $parameter)
-                {
-                }
-            };
-        });
+        $this->container->bind('UnionService', DummyWithUnionParameter::class);
 
         $graph = $this->container->generateDependencyGraph();
 
-        $this->assertSame(['string|int'], $graph['UnionService']);
+        $this->assertSame(['kind' => 'class', 'dependencies' => ['string|int']], $graph['UnionService']);
     }
 
     /**
@@ -86,61 +86,51 @@ final class DebuggingTraitTest extends TestCase
      */
     public function test_generateDependencyGraph_preserves_intersection_type_representation(): void
     {
-        $this->container->bind('IntersectionService', function () {
-            return new class(new DummyIntersection()) {
-                public function __construct(DummyInterfaceA&DummyInterfaceB $parameter)
-                {
-                }
-            };
-        });
+        $this->container->bind('IntersectionService', DummyWithIntersectionParameter::class);
 
         $graph = $this->container->generateDependencyGraph();
 
-        $this->assertSame([DummyInterfaceA::class . '&' . DummyInterfaceB::class], $graph['IntersectionService']);
+        $this->assertSame(
+            ['kind' => 'class', 'dependencies' => [DummyInterfaceA::class . '&' . DummyInterfaceB::class]],
+            $graph['IntersectionService']
+        );
     }
 
     /**
      * @throws ReflectionException|ContainerException
      */
-    public function test_generateDependencyGraph_throws_exception_for_invalid_class_string(): void
+    public function test_generateDependencyGraph_reports_no_dependencies_for_constructor_less_class(): void
     {
-        // Bind a service that returns a string for which class does not exist.
-        $this->container->bind('FaultyService', fn ($c, array $params = []) => 'NonExistentClass');
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Class NonExistentClass does not exist.");
-
-        // This call should trigger the exception since the binding returns an invalid class name.
-        $this->container->generateDependencyGraph();
-    }
-
-    /**
-     * @throws ReflectionException|ContainerException
-     */
-    public function test_generateDependencyGraph_throws_exception_for_invalid_instance_type(): void
-    {
-        // Bind a service that returns a value that is neither an object nor a string.
-        $this->container->bind('FaultyService2', fn ($c, array $params = []) => 42);
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Expected a valid class name or object for ReflectionClass.");
-
-        // This call should trigger the exception since 42 is not acceptable.
-        $this->container->generateDependencyGraph();
-    }
-
-    /**
-     * @throws ReflectionException|ContainerException
-     */
-    public function test_generateDependencyGraph_string_instance_branch(): void
-    {
-        // Bind a service that returns a valid class name (as a string)
-        $this->container->bind('StringService', fn ($c, array $params = []) => stdClass::class);
+        $this->container->bind('StringService', stdClass::class);
 
         $graph = $this->container->generateDependencyGraph();
 
-        $this->assertArrayHasKey('StringService', $graph);
-        // Since stdClass has no constructor, its dependencies array should be empty.
-        $this->assertSame([], $graph['StringService']);
+        $this->assertSame(['kind' => 'class', 'dependencies' => []], $graph['StringService']);
+    }
+}
+
+final class DummyConstructedWithSentinel
+{
+    public static int $constructedCount = 0;
+
+    public function __construct(
+        string $param1,
+        int $param2
+    ) {
+        self::$constructedCount++;
+    }
+}
+
+final class DummyWithUnionParameter
+{
+    public function __construct(string|int $parameter)
+    {
+    }
+}
+
+final class DummyWithIntersectionParameter
+{
+    public function __construct(DummyInterfaceA&DummyInterfaceB $parameter)
+    {
     }
 }

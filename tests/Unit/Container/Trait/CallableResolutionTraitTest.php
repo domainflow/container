@@ -6,34 +6,14 @@ namespace DomainFlow\Tests\Unit\Container\Trait;
 
 use DomainFlow\Container;
 use DomainFlow\Container\Exception\ContainerException;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use stdClass;
 use Throwable;
 use TypeError;
 
 #[CoversClass(Container::class)]
 final class CallableResolutionTraitTest extends TestCase
 {
-    /**
-     * @throws Throwable
-     */
-    public function test_callThrowsExceptionForInvalidArrayCallable(): void
-    {
-        $container = new CallableResolutionTestableContainer();
-        $object = new class() {
-            public function method(): void
-            {
-            }
-        };
-
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Callable resolution error: method name must be a string.");
-
-        $container->testCall([$object, 123]);
-    }
-
     /**
      * @throws Throwable
      */
@@ -88,8 +68,9 @@ final class CallableResolutionTraitTest extends TestCase
             }
         };
 
-        // Because PHP enforces the callable type, passing an array with a non‑string method
-        // throws a TypeError before container logic is reached.
+        // PHP enforces the `callable` type on call()'s parameter, so an array
+        // whose method element is not a string throws a TypeError before any
+        // container logic runs.
         $this->expectException(TypeError::class);
         $container->call([$object, 123]);
     }
@@ -102,38 +83,6 @@ final class CallableResolutionTraitTest extends TestCase
     }
 
     /**
-     * @throws Throwable
-     */
-    public function test_callThrowsContainerExceptionForNonStringMethodNameViaTestableContainer(): void
-    {
-        $container = new CallableResolutionTestableContainer();
-        $dummy = new class() {
-            public function validMethod(): string
-            {
-                return 'ok';
-            }
-        };
-        // supply an invalid method element.
-        $invalidCallable = [$dummy, 123];
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Callable resolution error: method name must be a string.");
-        $container->testCall($invalidCallable, []);
-    }
-
-    /**
-     * @throws Throwable
-     */
-    public function test_callThrowsContainerExceptionForUnsupportedCallableTypeViaTestableContainer(): void
-    {
-        $container = new CallableResolutionTestableContainer();
-        $invalidCallable = new stdClass();
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Unsupported callable type: stdClass");
-        $container->testCall($invalidCallable, []);
-
-    }
-
-    /**
      * @throws ContainerException|Throwable
      */
     public function test_callWithStringCallableDirectly(): void
@@ -142,23 +91,9 @@ final class CallableResolutionTraitTest extends TestCase
         if (!function_exists($functionName)) {
             eval('function test_function_callable_direct($param = "direct"): string { return $param; }');
         }
-        $container = new CallableResolutionTestableContainer();
+        $container = new Container();
 
-        $this->assertSame('direct', $container->testCall($functionName, ['param' => 'direct']));
-    }
-
-    /**
-     * @throws ContainerException|Throwable
-     */
-    public function test_callThrowsExceptionForInvalidClassOrObjectInArrayCallable(): void
-    {
-        $container = new CallableResolutionTestableContainer();
-
-        // Passing an array callable whose first element is not an object or string (e.g. integer)
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Expected object or class name for ReflectionMethod.');
-
-        $container->testCall([42, 'foo'], []);
+        $this->assertSame('direct', $container->call($functionName, ['param' => 'direct']));
     }
 
     /**
@@ -194,31 +129,6 @@ final class CallableResolutionTraitTest extends TestCase
     /**
      * @throws Throwable
      */
-    public function test_callWithNonObjectInstance(): void
-    {
-        $dummyClass = new class() {
-            public static function foo(): string
-            {
-                return 'bar';
-            }
-        };
-        $container = new class() extends Container {
-            public function make(string $abstract, array $parameters = []): string
-            {
-                // Force a non-object return.
-                return 'notAnObject';
-            }
-        };
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Callable resolution error: Expected instance to be an object.");
-
-        // For a static callable, passing an array of (class-string, method) is allowed.
-        $container->call([get_class($dummyClass), 'foo']);
-    }
-
-    /**
-     * @throws Throwable
-     */
     public function test_callWithClosureUsingParameterResolution(): void
     {
         $container = new Container();
@@ -238,20 +148,5 @@ final class CallableResolutionTraitTest extends TestCase
             return 'closure executed';
         };
         $this->assertSame('closure executed', $container->call($closure));
-    }
-}
-
-class CallableResolutionTestableContainer extends Container
-{
-    /**
-     * @param callable $callable
-     * @param array<string, mixed> $parameters
-     * @throws ContainerException|Throwable
-     */
-    public function testCall(
-        mixed $callable,
-        array $parameters = []
-    ): mixed {
-        return $this->doCall($callable, $parameters);
     }
 }

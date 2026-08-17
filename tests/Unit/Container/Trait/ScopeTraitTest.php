@@ -9,9 +9,7 @@ use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionException;
 use stdClass;
-use Throwable;
 
 #[CoversClass(Container::class)]
 final class ScopeTraitTest extends TestCase
@@ -148,26 +146,11 @@ final class ScopeTraitTest extends TestCase
 
     public function test_scopeGetUsesParentGetWhenBindingExists(): void
     {
-        $parent = new ScobeTestableContainer();
+        $parent = new Container();
         $scoped = $parent->scope('test_scope', fn ($scopedContainer) => $scopedContainer);
 
         $scoped->bind('ScopedBoundService', fn () => 'scopedBound');
 
         $this->assertSame('scopedBound', $scoped->get('ScopedBoundService'));
-    }
-}
-
-# dummy class
-class ScobeTestableContainer extends Container
-{
-    /**
-     * @param array<string, mixed> $parameters
-     * @throws ContainerException|NotFoundException|ReflectionException|Throwable
-     */
-    public function testCall(
-        mixed $callable,
-        array $parameters = []
-    ): mixed {
-        return $this->doCall($callable, $parameters);
     }
 }

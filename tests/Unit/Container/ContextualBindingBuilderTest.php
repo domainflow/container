@@ -10,16 +10,18 @@ use DomainFlow\Container\NeedsBindingBuilder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 
 #[CoversClass(ContextualBindingBuilder::class)]
 #[CoversClass(NeedsBindingBuilder::class)]
 final class ContextualBindingBuilderTest extends TestCase
 {
     /**
+     * `createNeedsBindingBuilder()` is documented as overridable so that
+     * advanced consumers can customize or stub out the builder in tests.
+     *
      * @throws Exception
      */
-    public function test_needs_returns_correct_instance_without_covering_NeedsBindingBuilder(): void
+    public function test_needs_delegates_to_an_overridden_createNeedsBindingBuilder(): void
     {
         $containerStub = $this->createStub(Container::class);
         $concrete = 'MyConcreteClass';
@@ -40,24 +42,19 @@ final class ContextualBindingBuilderTest extends TestCase
     /**
      * @throws Exception
      */
-    public function test_createNeedsBindingBuilder_returns_instance_with_correct_properties(): void
+    public function test_needs_give_registers_the_contextual_binding_on_the_container(): void
     {
-        $containerStub = $this->createStub(Container::class);
         $concrete = 'MyConcreteClass';
         $abstract = 'MyAbstractInterface';
+        $implementation = 'MyImplementationClass';
 
-        $builder = new AnotherTestableContextualBindingBuilder($containerStub, $concrete);
-        $needsBuilder = $builder->publicCreateNeedsBindingBuilder($abstract);
+        $containerMock = $this->createMock(Container::class);
+        $containerMock->expects($this->once())
+            ->method('addContextualBinding')
+            ->with($concrete, $abstract, $implementation);
 
-        $reflection = new ReflectionClass($needsBuilder);
-
-        $propConcrete = $reflection->getProperty('concrete');
-
-        $this->assertSame($concrete, $propConcrete->getValue($needsBuilder));
-
-        $propAbstract = $reflection->getProperty('abstract');
-
-        $this->assertSame($abstract, $propAbstract->getValue($needsBuilder));
+        $builder = new ContextualBindingBuilder($containerMock, $concrete);
+        $builder->needs($abstract)->give($implementation);
     }
 }
 
@@ -90,18 +87,5 @@ class DummyNeedsBindingBuilder extends NeedsBindingBuilder
     public function give(
         string $implementation
     ): void {
-    }
-}
-
-class AnotherTestableContextualBindingBuilder extends ContextualBindingBuilder
-{
-    /**
-     * @param string $abstract
-     * @return NeedsBindingBuilder
-     */
-    public function publicCreateNeedsBindingBuilder(
-        string $abstract
-    ): NeedsBindingBuilder {
-        return $this->createNeedsBindingBuilder($abstract);
     }
 }
