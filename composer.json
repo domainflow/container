@@ -1,6 +1,6 @@
 {
   "name": "domainflow/container",
-  "description": "Dependency injection container package for PHP 8.3+",
+  "description": "Dependency injection container package for PHP 8.4+",
   "type": "library",
   "license": "MIT",
   "authors": [
@@ -10,7 +10,7 @@
     }
   ],
   "require": {
-    "php": "^8.3 || ^8.4",
+    "php": "^8.4",
     "psr/container": "^2.0",
     "symfony/yaml": "^7.4.12 || ^8.0.12"
   },
@@ -33,9 +33,18 @@
     }
   },
   "scripts": {
-    "test": "./vendor/bin/phpunit --testsuite=Unit -c phpunit.xml",
-    "test-integration": "./vendor/bin/phpunit --testsuite=Integration -c phpunit.xml",
-    "test-all": "./vendor/bin/phpunit -c phpunit.xml",
+    "test": [
+      "@putenv XDEBUG_MODE=coverage",
+      "./vendor/bin/phpunit --testsuite=Unit -c phpunit.xml"
+    ],
+    "test-integration": [
+      "@putenv XDEBUG_MODE=coverage",
+      "./vendor/bin/phpunit --testsuite=Integration -c phpunit.xml"
+    ],
+    "test-all": [
+      "@putenv XDEBUG_MODE=coverage",
+      "./vendor/bin/phpunit -c phpunit.xml"
+    ],
     "test:coverage": [
       "@putenv XDEBUG_MODE=coverage",
       "./vendor/bin/phpunit -c phpunit.xml --coverage-html=build/coverage",
