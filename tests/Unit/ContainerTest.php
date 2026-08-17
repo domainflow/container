@@ -8,11 +8,14 @@ use DomainFlow\Container;
 use DomainFlow\Container\Cache\InMemoryContainerCache;
 use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
+use DomainFlow\Tests\Unit\Dummy\DummyNoConstructor;
+use DomainFlow\Tests\Unit\Dummy\DummyWithConstructor;
 use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
+use RuntimeException;
 use stdClass;
 use Throwable;
 
@@ -153,6 +156,88 @@ final class ContainerTest extends TestCase
 
         $this->assertTrue($executed, "The afterResolve hook should execute after making an instance.");
         $this->assertSame($modifiedInstance, $instance, "The afterResolve hook should allow modifying the instance.");
+    }
+
+    /**
+     * @throws NotFoundException|Throwable|ContainerException
+     */
+    public function test_make_runs_hooks_once_for_each_supported_resolution_path(): void
+    {
+        $instance = new stdClass();
+        $this->container->bind('bound', fn (): stdClass => new stdClass());
+        $this->container->singleton('shared', fn (): stdClass => new stdClass());
+        $this->container->instance('instance', $instance);
+
+        $paths = [
+            'bound' => [],
+            'shared' => [],
+            'instance' => [],
+            DummyWithConstructor::class => ['foo' => 'value'],
+            DummyNoConstructor::class => [],
+        ];
+
+        foreach ($paths as $abstract => $parameters) {
+            $beforeCalls = 0;
+            $afterCalls = 0;
+            $processedObjects = [];
+            $this->container->addBeforeResolve(
+                function (string $resolved) use (&$beforeCalls, $abstract): void {
+                    if ($resolved === $abstract) {
+                        $beforeCalls++;
+                    }
+                }
+            );
+            $this->container->addAfterResolve(
+                function (object $resolved, string $identifier) use (&$afterCalls, &$processedObjects, $abstract): ?object {
+                    if ($identifier === $abstract) {
+                        $afterCalls++;
+                        $processedObjects[spl_object_id($resolved)] = ($processedObjects[spl_object_id($resolved)] ?? 0) + 1;
+                    }
+
+                    return null;
+                }
+            );
+
+            $this->container->make($abstract, $parameters);
+
+            $this->assertSame(1, $beforeCalls, "[$abstract] should emit one before-resolve hook.");
+            $this->assertSame(1, $afterCalls, "[$abstract] should emit one after-resolve hook.");
+            $this->assertSame([1], array_values($processedObjects), "[$abstract] should not process its resolved object twice.");
+        }
+    }
+
+    /**
+     * @throws NotFoundException|Throwable|ContainerException
+     */
+    public function test_make_runs_only_before_hooks_when_resolution_fails(): void
+    {
+        $beforeCalls = 0;
+        $afterCalls = 0;
+        $this->container->bind('failing', static function (): never {
+            throw new RuntimeException('Factory failed.');
+        });
+        $this->container->addBeforeResolve(static function (string $abstract) use (&$beforeCalls): void {
+            if ($abstract === 'failing') {
+                $beforeCalls++;
+            }
+        });
+        $this->container->addAfterResolve(static function (object $instance, string $abstract) use (&$afterCalls): ?object {
+            if ($abstract === 'failing') {
+                $afterCalls++;
+            }
+
+            return null;
+        });
+
+        try {
+            $this->container->make('failing');
+            $this->fail('Expected the failing factory to throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Factory failed.', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $beforeCalls);
+        $this->assertSame(0, $afterCalls);
     }
 
     public function test_setInstance_sets_singleton_instance(): void
