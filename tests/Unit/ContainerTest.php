@@ -68,19 +68,17 @@ final class ContainerTest extends TestCase
     /**
      * @throws ContainerException|Throwable|NotFoundException
      */
-    public function test_make_handles_circular_dependency(): void
+    public function test_make_clears_the_resolution_state_after_a_circular_dependency_failure(): void
     {
-        $containerMock = $this->getMockBuilder(Container::class)
-            ->onlyMethods(['resolveCircularDependency'])
-            ->getMock();
+        $this->container->bind('first', fn (Container $container) => $container->make('second'));
+        $this->container->bind('second', fn (Container $container) => $container->make('first'));
 
-        $containerMock->method('resolveCircularDependency')->willReturn(fn () => 'circular_result');
-
-        $containerMock->resolving['CircularService'] = true;
-
-        $result = $containerMock->make('CircularService');
-
-        $this->assertSame('circular_result', $result());
+        try {
+            $this->container->make('first');
+            $this->fail('Expected a circular dependency to throw.');
+        } catch (ContainerException) {
+            $this->assertSame([], $this->container->resolving);
+        }
     }
 
     /**

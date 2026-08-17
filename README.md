@@ -18,6 +18,13 @@ The **DomainFlow Container** is a modular and extensible **Dependency Injection 
 - **Service Binding:** Bind concrete implementations to interfaces or abstractions.
 - **PSR-11 Compliance:** Fully implements [PSR-11](https://www.php-fig.org/psr/psr-11/) for broad interoperability.
 
+## Resolution errors
+
+Circular constructor dependencies are not supported. Resolving one throws a
+`DomainFlow\\Container\\Exception\\ContainerException` with the dependency chain,
+for example `A -> B -> A`. Use an explicit factory binding to defer work where a
+lazy relationship is genuinely required.
+
 ---
 
 ## ⚙️ Requirements
@@ -44,4 +51,3 @@ More details and usage examples can be found in our [documentation](https://www.
 ## 📄 License
 
 The **DomainFlow Container** is open-sourced software licensed under the [MIT license](https://opensource.org/license/MIT).
-
