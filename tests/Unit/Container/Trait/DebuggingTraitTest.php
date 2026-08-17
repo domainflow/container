@@ -6,6 +6,9 @@ namespace DomainFlow\Tests\Unit\Container\Trait;
 
 use DomainFlow\Container;
 use DomainFlow\Container\Exception\ContainerException;
+use DomainFlow\Tests\Unit\Dummy\DummyInterfaceA;
+use DomainFlow\Tests\Unit\Dummy\DummyInterfaceB;
+use DomainFlow\Tests\Unit\Dummy\DummyIntersection;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -58,6 +61,42 @@ final class DebuggingTraitTest extends TestCase
         $this->assertArrayHasKey('TestService', $graph);
         $this->assertContains('string', $graph['TestService']);
         $this->assertContains('int', $graph['TestService']);
+    }
+
+    /**
+     * @throws ReflectionException|ContainerException
+     */
+    public function test_generateDependencyGraph_preserves_union_type_representation(): void
+    {
+        $this->container->bind('UnionService', function () {
+            return new class('test') {
+                public function __construct(string|int $parameter)
+                {
+                }
+            };
+        });
+
+        $graph = $this->container->generateDependencyGraph();
+
+        $this->assertSame(['string|int'], $graph['UnionService']);
+    }
+
+    /**
+     * @throws ReflectionException|ContainerException
+     */
+    public function test_generateDependencyGraph_preserves_intersection_type_representation(): void
+    {
+        $this->container->bind('IntersectionService', function () {
+            return new class(new DummyIntersection()) {
+                public function __construct(DummyInterfaceA&DummyInterfaceB $parameter)
+                {
+                }
+            };
+        });
+
+        $graph = $this->container->generateDependencyGraph();
+
+        $this->assertSame([DummyInterfaceA::class . '&' . DummyInterfaceB::class], $graph['IntersectionService']);
     }
 
     /**
