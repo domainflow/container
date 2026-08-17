@@ -7,6 +7,11 @@ namespace DomainFlow\Container\Cache;
 interface ContainerCacheInterface
 {
     /**
+     * Cache key for validated declarative container definitions.
+     */
+    public const DEFINITION_CACHE_KEY = 'domainflow.container.definitions.v1';
+
+    /**
      * Get the value from the cache.
      *
      * @param string $key
@@ -19,6 +24,8 @@ interface ContainerCacheInterface
      *
      * @param string $key
      * @param mixed $value
+     * A TTL of zero means the adapter must not expire the value.
+     *
      * @param int $ttl
      * @return bool
      */

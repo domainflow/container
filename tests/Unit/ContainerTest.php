@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DomainFlow\Tests\Unit;
 
 use DomainFlow\Container;
+use DomainFlow\Container\Cache\InMemoryContainerCache;
 use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
 use InvalidArgumentException;
@@ -16,6 +17,7 @@ use stdClass;
 use Throwable;
 
 #[CoversClass(Container::class)]
+#[CoversClass(InMemoryContainerCache::class)]
 final class ContainerTest extends TestCase
 {
     private Container $container;
@@ -96,12 +98,15 @@ final class ContainerTest extends TestCase
 
     public function test_resetContainer_clears_bindings_and_instances(): void
     {
+        $cache = new InMemoryContainerCache();
+        $this->container->setExternalCache($cache);
         $this->container->instance('ServiceA', new stdClass());
         $this->assertTrue($this->container->has('ServiceA'));
 
         $this->container->resetContainer();
 
         $this->assertFalse($this->container->has('ServiceA'));
+        $this->assertFalse($cache->has('domainflow.container.definitions.v1'));
     }
 
     /**

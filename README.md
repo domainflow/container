@@ -25,6 +25,21 @@ Circular constructor dependencies are not supported. Resolving one throws a
 for example `A -> B -> A`. Use an explicit factory binding to defer work where a
 lazy relationship is genuinely required.
 
+## Resolution definition cache
+
+`ContainerCacheInterface` can persist declarative class bindings and aliases so
+a new container can restore them before calling `make()` or `get()`. It never
+stores resolved instances, closures, factory results, or serialized values.
+Only bindings registered with a concrete class string are cacheable; closure
+bindings and `instance()` registrations remain local to the current container.
+
+Attach a cache to an empty container with `setExternalCache()`. Binding or alias
+changes replace the stored definition set. `clearResolutionCache()` deletes only
+the external definitions, while `resetContainer()` clears both the local
+container state and its stored definitions. Cache adapters are trusted
+configuration stores: protect them from unauthorized writes, just as you would
+the application's binding configuration.
+
 ---
 
 ## ⚙️ Requirements

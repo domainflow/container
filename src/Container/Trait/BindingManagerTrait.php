@@ -33,6 +33,11 @@ trait BindingManagerTrait
     protected array $aliases = [];
 
     /**
+     * @var array<string, array{concrete: class-string, shared: bool}>
+     */
+    protected array $cacheableBindings = [];
+
+    /**
      * Bind an abstract type to a concrete implementation.
      *
      * @param string $abstract
@@ -59,11 +64,15 @@ trait BindingManagerTrait
                 /** @var array<string, mixed> $parameters */
                 return $container->build($className, $parameters);
             };
+            $this->cacheableBindings[$abstract] = ['concrete' => $className, 'shared' => $shared];
+        } else {
+            unset($this->cacheableBindings[$abstract]);
         }
         $this->bindings[$abstract] = [
             'concrete' => $concrete,
             'shared' => $shared,
         ];
+        $this->persistCachedDefinitions();
     }
 
     /**
@@ -93,6 +102,8 @@ trait BindingManagerTrait
         mixed $instance
     ): void {
         $this->instances[$abstract] = $instance;
+        unset($this->cacheableBindings[$abstract]);
+        $this->persistCachedDefinitions();
     }
 
     /**
@@ -107,5 +118,6 @@ trait BindingManagerTrait
         string $alias
     ): void {
         $this->aliases[$alias] = $abstract;
+        $this->persistCachedDefinitions();
     }
 }

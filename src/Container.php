@@ -177,8 +177,6 @@ class Container implements ContainerInterface, ArrayAccess
                 }
             }
 
-            $this->cacheResolvedService($abstract, $instance);
-
             return $instance;
         } finally {
             unset($this->resolving[$abstract]);
@@ -208,8 +206,10 @@ class Container implements ContainerInterface, ArrayAccess
         $this->bindings = [];
         $this->instances = [];
         $this->aliases = [];
+        $this->cacheableBindings = [];
         $this->contextual = [];
         $this->scopes = [];
         $this->reflectionCache = [];
+        $this->clearResolutionCache();
     }
 }
