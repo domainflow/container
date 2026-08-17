@@ -55,7 +55,10 @@ trait BindingManagerTrait
             }
             /** @var class-string $className */
             $className = $concrete;
-            $concrete = fn (self $container, array $parameters = []): mixed => $container->build($className, $parameters);
+            $concrete = static function (self $container, array $parameters = []) use ($className): mixed {
+                /** @var array<string, mixed> $parameters */
+                return $container->build($className, $parameters);
+            };
         }
         $this->bindings[$abstract] = [
             'concrete' => $concrete,
