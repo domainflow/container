@@ -4,27 +4,26 @@ declare(strict_types=1);
 
 namespace DomainFlow\Container\Trait;
 
-use Closure;
 use DomainFlow\Container\Cache\ContainerCacheInterface;
 
 /**
  * Trait CacheManagerTrait
  *
- * Provides methods for caching resolved service instances.
+ * Persists validated, declarative class bindings for a cold container.
  */
 trait CacheManagerTrait
 {
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $resolvedServicesCache = [];
-
     /**
      * External cache store (optional).
      *
      * @var ContainerCacheInterface|null
      */
     protected ?ContainerCacheInterface $externalCache = null;
+
+    /**
+     * Prevents hydrated definitions from being written back while loading.
+     */
+    private bool $hydratingCachedDefinitions = false;
 
     /**
      * Set the external cache store.
@@ -36,75 +35,129 @@ trait CacheManagerTrait
         ContainerCacheInterface $cacheStore
     ): void {
         $this->externalCache = $cacheStore;
+        $this->hydrateCachedDefinitions();
     }
 
     /**
-     * Cache a resolved service instance.
-     *
-     * @param string $abstract
-     * @param mixed $instance
-     * @return void
+     * Delete externally stored definitions. This does not alter the current
+     * container's registrations or retained instances.
      */
-    public function cacheResolvedService(
-        string $abstract,
-        mixed $instance
-    ): void {
-        $this->resolvedServicesCache[$abstract] = $instance;
-    }
-
-    /**
-     * Retrieve the cached resolved services.
-     *
-     * @return array<string, mixed>
-     */
-    public function cacheResolvedServices(): array
+    public function clearResolutionCache(): void
     {
-        return $this->resolvedServicesCache;
+        $this->externalCache?->delete(ContainerCacheInterface::DEFINITION_CACHE_KEY);
     }
 
     /**
-     * Clear the resolved services cache.
-     *
-     * @param Closure $cacheKey
-     * @return void
+     * Persist the cacheable part of the current container definition.
      */
-    public function clearResolvedServicesCache(
-        Closure $cacheKey
-    ): void {
-        if ($this->externalCache !== null) {
-            $key = $this->closureToString($cacheKey);
-            $this->externalCache->set($key, $this->resolvedServicesCache);
+    protected function persistCachedDefinitions(): void
+    {
+        if ($this->externalCache === null || $this->hydratingCachedDefinitions) {
+            return;
         }
-        $this->resolvedServicesCache = [];
+
+        $this->externalCache->set(ContainerCacheInterface::DEFINITION_CACHE_KEY, [
+            'version' => 1,
+            'bindings' => $this->cacheableBindings,
+            'aliases' => $this->cacheableAliases(),
+        ], 0);
     }
 
     /**
-     * Converts a closure to a unique string representation.
-     *
-     * @param Closure $closure
-     * @return string
+     * Import only valid class-string bindings and aliases into an empty
+     * container. Cached closures, instances, and arbitrary values are never
+     * accepted because they cannot be safely reconstructed across processes.
      */
-    protected function closureToString(
-        Closure $closure
-    ): string {
-        return spl_object_hash($closure);
+    private function hydrateCachedDefinitions(): void
+    {
+        if ($this->bindings !== [] || $this->instances !== [] || $this->aliases !== []) {
+            return;
+        }
+
+        $cached = $this->externalCache?->get(ContainerCacheInterface::DEFINITION_CACHE_KEY);
+        if (!is_array($cached) || !$this->isValidCachedDefinitions($cached)) {
+            return;
+        }
+
+        /** @var array<string, array{concrete: class-string, shared: bool}> $bindings */
+        $bindings = $cached['bindings'];
+        /** @var array<string, string> $aliases */
+        $aliases = $cached['aliases'];
+
+        $this->hydratingCachedDefinitions = true;
+        try {
+            foreach ($bindings as $abstract => $binding) {
+                $this->bind($abstract, $binding['concrete'], $binding['shared']);
+            }
+
+            foreach ($aliases as $alias => $abstract) {
+                $this->alias($abstract, $alias);
+            }
+        } finally {
+            $this->hydratingCachedDefinitions = false;
+        }
     }
 
     /**
-     * Load the resolved services cache from the external cache store using the provided key.
-     *
-     * @param string $cacheKey
-     * @return void
+     * @param mixed $cached
      */
-    public function loadResolvedServicesFromExternalCache(
-        string $cacheKey
-    ): void {
-        if ($this->externalCache !== null && $this->externalCache->has($cacheKey)) {
-            /** @var array<string, mixed> $cached */
-            $cached = $this->externalCache->get($cacheKey);
-            if (is_array($cached)) {
-                $this->resolvedServicesCache = $cached;
+    private function isValidCachedDefinitions(mixed $cached): bool
+    {
+        if (!is_array($cached)
+            || ($cached['version'] ?? null) !== 1
+            || array_keys($cached) !== ['version', 'bindings', 'aliases']
+            || !isset($cached['bindings'], $cached['aliases'])
+            || !is_array($cached['bindings'])
+            || !is_array($cached['aliases'])
+        ) {
+            return false;
+        }
+
+        foreach ($cached['bindings'] as $abstract => $binding) {
+            if (!is_string($abstract)
+                || $abstract === ''
+                || !is_array($binding)
+                || array_keys($binding) !== ['concrete', 'shared']
+                || !isset($binding['concrete'], $binding['shared'])
+                || !is_string($binding['concrete'])
+                || !class_exists($binding['concrete'])
+                || !is_bool($binding['shared'])
+            ) {
+                return false;
             }
         }
+
+        foreach ($cached['aliases'] as $alias => $abstract) {
+            if (!is_string($alias)
+                || $alias === ''
+                || !is_string($abstract)
+                || $abstract === ''
+                || (!array_key_exists($abstract, $cached['bindings']) && !class_exists($abstract))
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function cacheableAliases(): array
+    {
+        return array_filter(
+            $this->aliases,
+            fn (string $abstract): bool => $this->isCacheableAliasTarget($abstract)
+        );
+    }
+
+    private function isCacheableAliasTarget(string $abstract): bool
+    {
+        if (array_key_exists($abstract, $this->bindings) || array_key_exists($abstract, $this->instances)) {
+            return array_key_exists($abstract, $this->cacheableBindings);
+        }
+
+        return class_exists($abstract);
     }
 }
