@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace DomainFlow\Tests\Unit\Container\Trait;
 
 use DomainFlow\Container;
-use DomainFlow\Container\Trait\TagManagerTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerExceptionInterface;
-use ReflectionClass;
 use stdClass;
 
 #[CoversClass(Container::class)]
@@ -21,16 +19,7 @@ final class TagManagerTraitTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = new class() extends Container {
-            use TagManagerTrait;
-
-            public function addMockService(
-                string $id,
-                mixed $instance
-            ): void {
-                $this->instances[$id] = $instance;
-            }
-        };
+        $this->container = new Container();
     }
 
     /**
@@ -48,19 +37,6 @@ final class TagManagerTraitTest extends TestCase
         );
     }
 
-    public function test_tag_adds_services_to_tag_list_whiteBox(): void
-    {
-        $this->container->tag('my_tag', ['ServiceA', 'ServiceB']);
-
-        $reflection = new ReflectionClass($this->container);
-        $prop = $reflection->getProperty('tags');
-        $tagsValue = $prop->getValue($this->container);
-
-        $this->assertArrayHasKey('my_tag', $tagsValue);
-        $this->assertContains('ServiceA', $tagsValue['my_tag']);
-        $this->assertContains('ServiceB', $tagsValue['my_tag']);
-    }
-
     /**
      * @throws ContainerExceptionInterface
      */
@@ -69,8 +45,8 @@ final class TagManagerTraitTest extends TestCase
         $serviceA = new stdClass();
         $serviceB = new stdClass();
 
-        $this->container->addMockService('ServiceA', $serviceA);
-        $this->container->addMockService('ServiceB', $serviceB);
+        $this->container->instance('ServiceA', $serviceA);
+        $this->container->instance('ServiceB', $serviceB);
 
         $this->container->tag('my_tag', ['ServiceA', 'ServiceB']);
 

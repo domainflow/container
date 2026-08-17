@@ -11,7 +11,6 @@ use DomainFlow\Tests\Unit\Dummy\DummyClass;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionException;
-use ReflectionProperty;
 use Throwable;
 
 #[CoversClass(Container::class)]
@@ -49,19 +48,17 @@ final class BindingManagerTraitTest extends TestCase
     {
         $abstract = 'foo';
         $closure = function () {
-            return 'bar';
+            return new DummyClass();
         };
         $this->dummy->bind($abstract, $closure, false);
 
-        $refProp = new ReflectionProperty($this->dummy, 'bindings');
-        $bindingsValue = $refProp->getValue($this->dummy);
-
-        $this->assertArrayHasKey($abstract, $bindingsValue);
-        $this->assertSame($closure, $bindingsValue[$abstract]['concrete']);
-        $this->assertFalse($bindingsValue[$abstract]['shared']);
-
         $this->assertTrue($this->dummy->has($abstract));
-        $this->assertSame('bar', $this->dummy->make($abstract));
+
+        $first = $this->dummy->make($abstract);
+        $second = $this->dummy->make($abstract);
+
+        $this->assertInstanceOf(DummyClass::class, $first);
+        $this->assertNotSame($first, $second, 'A non-shared binding should produce a new instance per call.');
     }
 
     /**

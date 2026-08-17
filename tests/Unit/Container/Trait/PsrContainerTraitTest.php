@@ -55,9 +55,10 @@ final class PsrContainerTraitTest extends TestCase
             ->getMock();
 
         // Simulate an unexpected error inside `make()`
-        $containerMock->method('make')->willThrowException(
-            new RuntimeException("Something went wrong")
-        );
+        $containerMock->expects($this->once())
+            ->method('make')
+            ->with('FaultyService')
+            ->willThrowException(new RuntimeException("Something went wrong"));
 
         $this->expectException(ContainerException::class);
         $this->expectExceptionMessage("Error while retrieving the entry 'FaultyService': Something went wrong");
