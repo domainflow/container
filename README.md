@@ -25,11 +25,31 @@ Circular constructor dependencies are not supported. Resolving one throws a
 for example `A -> B -> A`. Use an explicit factory binding to defer work where a
 lazy relationship is genuinely required.
 
+## Retained state and scopes
+
+Rebinding an identifier always discards a previously retained shared value for
+that identifier. `instance()` replaces the retained value directly. `has()` is
+limited to explicit bindings, instances, and aliases; autowireable classes may
+still be resolved through `make()` or `get()` but are not advertised as bound
+entries.
+
+`scope()` retains a named child container. Use `resetScope($name)` at a
+lifecycle boundary to discard that scope's retained values while preserving its
+local bindings and configuration. Use `disposeScope($name)` when the scope and
+its configuration must be removed completely. `resetContainer()` clears all
+registrations, retained values, aliases, scopes, hooks, tags, contextual and
+union-type configuration, reflection metadata, and external cached definitions.
+
+Properties marked with `#[Inject]` must be non-readonly properties with one
+non-built-in named type. Untyped, built-in, union, intersection, and readonly
+properties fail with `ContainerException` identifying the property.
+
 ## Resolution definition cache
 
 `ContainerCacheInterface` can persist declarative class bindings and aliases so
-a new container can restore them before calling `make()` or `get()`. It never
-stores resolved instances, closures, factory results, or serialized values.
+a new container can restore them before calling `make()` or `get()`. This
+declarative-definition path never stores resolved instances, closures, factory
+results, or serialized values.
 Only bindings registered with a concrete class string are cacheable; closure
 bindings and `instance()` registrations remain local to the current container.
 
@@ -39,6 +59,15 @@ the external definitions, while `resetContainer()` clears both the local
 container state and its stored definitions. Cache adapters are trusted
 configuration stores: protect them from unauthorized writes, just as you would
 the application's binding configuration.
+
+### Legacy resolved-service cache API
+
+`cacheResolvedService()`, `cacheResolvedServices()`,
+`clearResolvedServicesCache()`, and `loadResolvedServicesFromExternalCache()`
+remain available for backwards compatibility but are deprecated since 0.2.0.
+They may store arbitrary resolved values and therefore are not part of the safe
+declarative-definition cache contract. Migrate process-local reuse to shared
+bindings and persist application data through the application's own cache API.
 
 ---
 

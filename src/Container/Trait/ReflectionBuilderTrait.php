@@ -192,7 +192,7 @@ trait ReflectionBuilderTrait
             return $this->make($contextual[$dependencyName]);
         }
 
-        if ($this->has($dependencyName)) {
+        if ($this->has($dependencyName) || class_exists($dependencyName)) {
             return $this->make($dependencyName);
         }
 
@@ -251,7 +251,7 @@ trait ReflectionBuilderTrait
                     if (isset($contextual[$depName])) {
                         return $this->make($contextual[$depName]);
                     }
-                    if ($this->has($depName)) {
+                    if ($this->has($depName) || class_exists($depName)) {
                         return $this->make($depName);
                     }
                 }
@@ -270,7 +270,7 @@ trait ReflectionBuilderTrait
                 if (isset($contextual[$depName])) {
                     return $this->make($contextual[$depName]);
                 }
-                if ($this->has($depName)) {
+                if ($this->has($depName) || class_exists($depName)) {
                     $resolvableCandidates[] = $depName;
                 }
             }
@@ -362,18 +362,33 @@ trait ReflectionBuilderTrait
             $attributes = $property->getAttributes(Inject::class);
             if (!empty($attributes)) {
                 $type = $property->getType();
-                if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                    $dependency = $this->make($type->getName());
-                    if ($refClass->isFinal() && $property->isPrivate()) {
-                        $propertyName = $property->getName();
-                        $setter = function ($value) use ($propertyName) {
-                            $this->{$propertyName} = $value;
-                        };
-                        $boundSetter = Closure::bind($setter, $instance, $refClass->getName());
-                        $boundSetter($dependency);
-                    } else {
-                        $property->setValue($instance, $dependency);
-                    }
+                $propertyLabel = $refClass->getName() . '::$' . $property->getName();
+                if ($type === null) {
+                    throw new ContainerException("Cannot inject property [$propertyLabel]: it must declare a non-built-in named type.");
+                }
+                if ($type instanceof ReflectionUnionType) {
+                    throw new ContainerException("Cannot inject property [$propertyLabel]: union types are not supported.");
+                }
+                if ($type instanceof ReflectionIntersectionType) {
+                    throw new ContainerException("Cannot inject property [$propertyLabel]: intersection types are not supported.");
+                }
+                if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                    throw new ContainerException("Cannot inject property [$propertyLabel]: it must declare a non-built-in named type.");
+                }
+                if ($property->isReadOnly()) {
+                    throw new ContainerException("Cannot inject property [$propertyLabel]: readonly properties cannot be injected.");
+                }
+
+                $dependency = $this->make($type->getName());
+                if ($refClass->isFinal() && $property->isPrivate()) {
+                    $propertyName = $property->getName();
+                    $setter = function (mixed $value) use ($propertyName): void {
+                        $this->{$propertyName} = $value;
+                    };
+                    $boundSetter = Closure::bind($setter, $instance, $refClass->getName());
+                    $boundSetter($dependency);
+                } else {
+                    $property->setValue($instance, $dependency);
                 }
             }
         }

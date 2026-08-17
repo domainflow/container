@@ -147,7 +147,7 @@ class Container implements ContainerInterface, ArrayAccess
         $this->resolving[$abstract] = true;
         $this->resolutionStack[] = $abstract;
         try {
-
+            $sharedBinding = isset($this->bindings[$abstract]) && $this->bindings[$abstract]['shared'];
             if (isset($this->instances[$abstract])) {
                 $instance = $this->instances[$abstract];
             } elseif (!isset($this->bindings[$abstract])) {
@@ -159,9 +159,6 @@ class Container implements ContainerInterface, ArrayAccess
                 $concrete = $this->bindings[$abstract]['concrete'];
                 $instance = $concrete($this, $parameters);
 
-                if ($this->bindings[$abstract]['shared']) {
-                    $this->instances[$abstract] = $instance;
-                }
             }
 
             foreach ($this->afterResolveHooks as $hook) {
@@ -173,6 +170,10 @@ class Container implements ContainerInterface, ArrayAccess
                 if ($modifiedInstance !== null) {
                     $instance = $modifiedInstance;
                 }
+            }
+
+            if ($sharedBinding) {
+                $this->instances[$abstract] = $instance;
             }
 
             return $instance;
@@ -203,11 +204,18 @@ class Container implements ContainerInterface, ArrayAccess
     {
         $this->bindings = [];
         $this->instances = [];
+        $this->resolvedServicesCache = [];
         $this->aliases = [];
         $this->cacheableBindings = [];
         $this->contextual = [];
         $this->scopes = [];
         $this->reflectionCache = [];
+        $this->resolving = [];
+        $this->resolutionStack = [];
+        $this->beforeResolveHooks = [];
+        $this->afterResolveHooks = [];
+        $this->tags = [];
+        $this->unionTypePriority = [];
         $this->clearResolutionCache();
     }
 }

@@ -112,6 +112,29 @@ final class ScopeTraitTest extends TestCase
         $this->assertSame('delegated', $scoped->make('BoundService'));
     }
 
+    public function test_resetScope_discards_instances_but_preserves_bindings(): void
+    {
+        $scope = $this->container->scope('test_scope', fn ($scopedContainer) => $scopedContainer);
+        $scope->singleton('ScopedService', fn () => new stdClass());
+        $first = $scope->make('ScopedService');
+
+        $this->container->resetScope('test_scope');
+
+        $this->assertNotSame($first, $scope->make('ScopedService'));
+        $this->container->resetScope('unknown_scope');
+    }
+
+    public function test_disposeScope_removes_the_named_scope(): void
+    {
+        $this->container->scope('test_scope', function (Container $scopedContainer): void {
+            $scopedContainer->instance('ScopedService', new stdClass());
+        });
+
+        $this->container->disposeScope('test_scope');
+
+        $this->assertFalse($this->container->scope('test_scope', fn (Container $scope): bool => $scope->has('ScopedService')));
+    }
+
     public function test_scopeGetCallsParentGet(): void
     {
         $parent = new Container();
