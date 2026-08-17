@@ -7,7 +7,7 @@ namespace DomainFlow\Container\Trait;
 /**
  * Trait HookManagerTrait
  *
- * Manages hooks to be executed before and after dependency resolution.
+ * Manages hooks executed by Container::make() before and after resolution.
  */
 trait HookManagerTrait
 {

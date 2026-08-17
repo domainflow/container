@@ -119,26 +119,28 @@ final class ReflectionBuilderTraitTest extends TestCase
     /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_before_and_after_hooks_modify_instance(): void
+    public function test_build_does_not_run_resolution_hooks(): void
     {
-        $this->container->addBeforeResolve(function (string $concrete, array $parameters): void {
-            // For testing, we do nothing here.
+        $beforeCalls = 0;
+        $afterCalls = 0;
+        $this->container->addBeforeResolve(function (string $concrete, array $parameters) use (&$beforeCalls): void {
+            $beforeCalls++;
         });
-        $this->container->addAfterResolve(function (object $instance, string $concrete, array $parameters): ?object {
-            if (property_exists($instance, 'foo')) {
-                $instance->foo = 'modified';
-            }
+        $this->container->addAfterResolve(function (object $instance, string $concrete, array $parameters) use (&$afterCalls): ?object {
+            $afterCalls++;
 
             return null;
         });
         $instance = $this->container->build(DummyWithConstructor::class, ['foo' => 'initial']);
-        $this->assertSame('modified', $instance->foo);
+        $this->assertSame('initial', $instance->foo);
+        $this->assertSame(0, $beforeCalls);
+        $this->assertSame(0, $afterCalls);
     }
 
     /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_build_without_constructor_afterResolveHook_replaces_instance(): void
+    public function test_build_without_constructor_does_not_run_afterResolveHook(): void
     {
         $this->container->addAfterResolve(function (object $instance, string $concrete, array $parameters): ?object {
             if ($instance instanceof DummyAfterResolveNoConstructor) {
@@ -149,27 +151,27 @@ final class ReflectionBuilderTraitTest extends TestCase
         });
 
         $instance = $this->container->build(DummyAfterResolveNoConstructor::class);
-        $this->assertInstanceOf(DummyAfterResolveNoConstructorReplacement::class, $instance);
+        $this->assertInstanceOf(DummyAfterResolveNoConstructor::class, $instance);
     }
 
     /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_build_with_constructor_beforeHook_called(): void
+    public function test_build_with_constructor_does_not_run_beforeHook(): void
     {
         $called = false;
         $this->container->addBeforeResolve(function (string $concrete, array $parameters) use (&$called): void {
             $called = true;
         });
         $instance = $this->container->build(DummyWithConstructor::class, ['foo' => 'test']);
-        $this->assertTrue($called);
+        $this->assertFalse($called);
         $this->assertSame('test', $instance->foo);
     }
 
     /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_build_with_constructor_afterHook_replaces_instance(): void
+    public function test_build_with_constructor_does_not_run_afterHook(): void
     {
         $this->container->addAfterResolve(function (object $instance, string $concrete, array $parameters): ?object {
             if ($instance instanceof DummyWithConstructor) {
@@ -179,7 +181,7 @@ final class ReflectionBuilderTraitTest extends TestCase
             return null;
         });
         $instance = $this->container->build(DummyWithConstructor::class, ['foo' => 'original']);
-        $this->assertSame('hooked', $instance->foo);
+        $this->assertSame('original', $instance->foo);
     }
 
     /**
