@@ -9,6 +9,7 @@ use DomainFlow\Container\Cache\ContainerCacheInterface;
 use DomainFlow\Container\Cache\InMemoryContainerCache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 #[CoversClass(Container::class)]
 #[CoversClass(InMemoryContainerCache::class)]
@@ -91,6 +92,22 @@ final class ContainerCachingIntegrationTest extends TestCase
         $container->setExternalCache($cache);
 
         $this->assertFalse($container->has(HeavyServiceContract::class));
+    }
+
+    public function test_semantically_valid_cached_definitions_are_hydrated_regardless_of_key_order(): void
+    {
+        $cache = new InMemoryContainerCache();
+        $cache->set(ContainerCacheInterface::DEFINITION_CACHE_KEY, [
+            'aliases' => ['heavy' => HeavyServiceContract::class],
+            'bindings' => [HeavyServiceContract::class => ['shared' => true, 'concrete' => HeavyService::class]],
+            'version' => 1,
+        ]);
+
+        $container = new Container();
+        $container->setExternalCache($cache);
+
+        $this->assertTrue($container->has(HeavyServiceContract::class));
+        $this->assertInstanceOf(HeavyService::class, $container->get('heavy'));
     }
 
     public function test_cached_definition_with_an_invalid_binding_is_ignored(): void
@@ -177,6 +194,56 @@ final class ContainerCachingIntegrationTest extends TestCase
 
         $this->assertFalse($cache->has(ContainerCacheInterface::DEFINITION_CACHE_KEY));
         $this->assertInstanceOf(HeavyService::class, $container->make(HeavyServiceContract::class));
+    }
+
+    public function test_deprecated_resolved_service_cache_methods_preserve_legacy_behaviour(): void
+    {
+        $cache = new InMemoryContainerCache();
+        $service = new stdClass();
+        $cacheKey = static fn (): null => null;
+        $key = spl_object_hash($cacheKey);
+        $container = new Container();
+        $container->setExternalCache($cache);
+
+        $container->cacheResolvedService('legacy.service', $service);
+        $this->assertSame(['legacy.service' => $service], $container->cacheResolvedServices());
+
+        $container->clearResolvedServicesCache($cacheKey);
+        $this->assertSame([], $container->cacheResolvedServices());
+
+        $warmContainer = new Container();
+        $warmContainer->setExternalCache($cache);
+        $warmContainer->loadResolvedServicesFromExternalCache($key);
+
+        $this->assertSame(['legacy.service' => $service], $warmContainer->cacheResolvedServices());
+
+        $warmContainer->resetContainer();
+
+        $this->assertSame([], $warmContainer->cacheResolvedServices());
+    }
+
+    public function test_deprecated_resolved_service_cache_ignores_invalid_payloads(): void
+    {
+        $cache = new InMemoryContainerCache();
+        $container = new Container();
+        $container->setExternalCache($cache);
+
+        $cache->set('legacy.invalid', true);
+        $container->loadResolvedServicesFromExternalCache('legacy.invalid');
+
+        $cache->set('legacy.invalid', [1 => new stdClass()]);
+        $container->loadResolvedServicesFromExternalCache('legacy.invalid');
+
+        $this->assertSame([], $container->cacheResolvedServices());
+    }
+
+    public function test_deprecated_resolved_service_cache_load_is_a_no_op_without_an_external_cache(): void
+    {
+        $container = new Container();
+
+        $container->loadResolvedServicesFromExternalCache('legacy.missing');
+
+        $this->assertSame([], $container->cacheResolvedServices());
     }
 }
 

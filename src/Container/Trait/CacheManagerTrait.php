@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DomainFlow\Container\Trait;
 
+use Closure;
 use DomainFlow\Container\Cache\ContainerCacheInterface;
 
 /**
@@ -19,6 +20,13 @@ trait CacheManagerTrait
      * @var ContainerCacheInterface|null
      */
     protected ?ContainerCacheInterface $externalCache = null;
+
+    /**
+     * Legacy process-local resolved-service cache.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $resolvedServicesCache = [];
 
     /**
      * Prevents hydrated definitions from being written back while loading.
@@ -45,6 +53,83 @@ trait CacheManagerTrait
     public function clearResolutionCache(): void
     {
         $this->externalCache?->delete(ContainerCacheInterface::DEFINITION_CACHE_KEY);
+    }
+
+    /**
+     * Cache a resolved service for the legacy resolution-cache API.
+     *
+     * @deprecated since 0.2.0. Use a shared binding for process-local reuse.
+     * @param string $abstract
+     * @param mixed $instance
+     */
+    public function cacheResolvedService(string $abstract, mixed $instance): void
+    {
+        $this->resolvedServicesCache[$abstract] = $instance;
+    }
+
+    /**
+     * Return services cached by the legacy resolution-cache API.
+     *
+     * @deprecated since 0.2.0. Use explicit bindings and instances instead.
+     * @return array<string, mixed>
+     */
+    public function cacheResolvedServices(): array
+    {
+        return $this->resolvedServicesCache;
+    }
+
+    /**
+     * Persist and clear legacy resolved-service values under a closure-derived key.
+     *
+     * @deprecated since 0.2.0. Store application data in an application cache;
+     *             ContainerCacheInterface is otherwise reserved for declarative definitions.
+     */
+    public function clearResolvedServicesCache(Closure $cacheKey): void
+    {
+        if ($this->externalCache !== null) {
+            $this->externalCache->set(spl_object_hash($cacheKey), $this->resolvedServicesCache);
+        }
+
+        $this->resolvedServicesCache = [];
+    }
+
+    /**
+     * Restore legacy resolved-service values from an external cache key.
+     *
+     * @deprecated since 0.2.0. Store application data in an application cache;
+     *             ContainerCacheInterface is otherwise reserved for declarative definitions.
+     */
+    public function loadResolvedServicesFromExternalCache(string $cacheKey): void
+    {
+        if ($this->externalCache === null || !$this->externalCache->has($cacheKey)) {
+            return;
+        }
+
+        $cached = $this->normalizeResolvedServicesCache($this->externalCache->get($cacheKey));
+        if ($cached !== null) {
+            $this->resolvedServicesCache = $cached;
+        }
+    }
+
+    /**
+     * @param mixed $values
+     * @return array<string, mixed>|null
+     */
+    private function normalizeResolvedServicesCache(mixed $values): ?array
+    {
+        if (!is_array($values)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($values as $key => $_) {
+            if (!is_string($key)) {
+                return null;
+            }
+            $normalized[$key] = $_;
+        }
+
+        return $normalized;
     }
 
     /**
@@ -105,7 +190,8 @@ trait CacheManagerTrait
     {
         if (!is_array($cached)
             || ($cached['version'] ?? null) !== 1
-            || array_keys($cached) !== ['version', 'bindings', 'aliases']
+            || array_diff(array_keys($cached), ['version', 'bindings', 'aliases']) !== []
+            || count($cached) !== 3
             || !isset($cached['bindings'], $cached['aliases'])
             || !is_array($cached['bindings'])
             || !is_array($cached['aliases'])
@@ -117,7 +203,8 @@ trait CacheManagerTrait
             if (!is_string($abstract)
                 || $abstract === ''
                 || !is_array($binding)
-                || array_keys($binding) !== ['concrete', 'shared']
+                || array_diff(array_keys($binding), ['concrete', 'shared']) !== []
+                || count($binding) !== 2
                 || !isset($binding['concrete'], $binding['shared'])
                 || !is_string($binding['concrete'])
                 || !class_exists($binding['concrete'])
