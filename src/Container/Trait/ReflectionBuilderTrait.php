@@ -65,20 +65,7 @@ trait ReflectionBuilderTrait
                 $instance = new $concrete();
                 $this->injectProperties($instance);
 
-                // Execute after-resolve hooks.
-                foreach ($this->afterResolveHooks as $hook) {
-                    $resolved = $hook($instance, $concrete, $parameters);
-                    if ($resolved !== null) {
-                        $instance = $resolved;
-                    }
-                }
-
                 return $instance;
-            }
-
-            // Execute before-resolve hooks.
-            foreach ($this->beforeResolveHooks as $hook) {
-                $hook($concrete, $parameters);
             }
 
             $dependencies = [];
@@ -96,14 +83,6 @@ trait ReflectionBuilderTrait
 
             $instance = $reflector->newInstanceArgs($dependencies);
             $this->injectProperties($instance);
-
-            // Execute after-resolve hooks.
-            foreach ($this->afterResolveHooks as $hook) {
-                $resolved = $hook($instance, $concrete, $parameters);
-                if ($resolved !== null) {
-                    $instance = $resolved;
-                }
-            }
 
             return $instance;
         } catch (ReflectionException $e) {

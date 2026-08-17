@@ -149,10 +149,8 @@ class Container implements ContainerInterface, ArrayAccess
         try {
 
             if (isset($this->instances[$abstract])) {
-                return $this->instances[$abstract];
-            }
-
-            if (!isset($this->bindings[$abstract])) {
+                $instance = $this->instances[$abstract];
+            } elseif (!isset($this->bindings[$abstract])) {
                 if (!class_exists($abstract)) {
                     throw new NotFoundException("No entry found for [$abstract].");
                 }
