@@ -23,6 +23,10 @@ class ContainerLifecycleHooksIntegrationTest extends TestCase
 
         ob_start();
         try {
+            $container->bind(Logger::class);
+
+            $container->resetContainer();
+
             $container->addBeforeResolve(function (string $concrete, array $parameters): void {
                 echo "Resolving: $concrete" . PHP_EOL;
             });
@@ -32,10 +36,6 @@ class ContainerLifecycleHooksIntegrationTest extends TestCase
 
                 return null;
             });
-
-            $container->bind(Logger::class);
-
-            $container->resetContainer();
 
             $logger = $container->make(Logger::class);
             $logger->log("Logging event hooks in action!");

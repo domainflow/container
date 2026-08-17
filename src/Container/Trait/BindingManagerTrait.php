@@ -51,6 +51,8 @@ trait BindingManagerTrait
         Closure|string|null $concrete = null,
         bool $shared = false
     ): void {
+        unset($this->instances[$abstract]);
+
         if ($concrete === null) {
             $concrete = $abstract;
         }

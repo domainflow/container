@@ -367,7 +367,7 @@ final class ReflectionBuilderTraitTest extends TestCase
     /**
      * @throws NotFoundException|Throwable|ContainerException|ReflectionException
      */
-    public function test_resolveUnionType_priority_unresolvable_throws_exception(): void
+    public function test_resolveUnionType_priority_autowires_class_even_when_has_does_not_advertise_it(): void
     {
         $container = new class() extends DummyBindingManagerB {
             public function has(string $id): bool
@@ -381,8 +381,9 @@ final class ReflectionBuilderTraitTest extends TestCase
         };
         $priorityKey = DummyWithUnresolvableUnion::class . '::$dependency';
         $container->setUnionTypePriority($priorityKey, [DummyUnresolvable1::class]);
-        $this->expectException(ContainerException::class);
-        $container->build(DummyWithUnresolvableUnion::class);
+        $instance = $container->build(DummyWithUnresolvableUnion::class);
+
+        $this->assertInstanceOf(DummyUnresolvable1::class, $instance->dependency);
     }
 
     /**
@@ -548,7 +549,7 @@ final class ReflectionBuilderTraitTest extends TestCase
     /**
      * @throws Exception|ReflectionException
      */
-    public function test_resolveUnionType_no_resolvable_candidates_throws_exception(): void
+    public function test_resolveUnionType_detects_ambiguous_autowireable_candidates(): void
     {
         $fakeNamedTypeA = $this->createMock(ReflectionNamedType::class);
         $fakeNamedTypeA->method('isBuiltin')->willReturn(false);
@@ -579,7 +580,7 @@ final class ReflectionBuilderTraitTest extends TestCase
         $method = new ReflectionMethod($container, 'resolveUnionType');
 
         $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Unable to resolve union-typed parameter [\$dependency] in [$parentClass]");
+        $this->expectExceptionMessage("Ambiguous union-typed parameter [\$dependency] in [$parentClass]");
 
         $method->invoke($container, $fakeUnionType, $fakeParam, $parentClass);
     }

@@ -48,8 +48,6 @@ trait PsrContainerTrait
     ): bool {
         $id = $this->aliases[$id] ?? $id;
 
-        return isset($this->bindings[$id])
-            || isset($this->instances[$id])
-            || class_exists($id);
+        return isset($this->bindings[$id]) || isset($this->instances[$id]);
     }
 }
