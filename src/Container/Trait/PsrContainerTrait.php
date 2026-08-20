@@ -6,6 +6,7 @@ namespace DomainFlow\Container\Trait;
 
 use DomainFlow\Container\Exception\ContainerException;
 use DomainFlow\Container\Exception\NotFoundException;
+use ReflectionClass;
 use Throwable;
 
 /**
@@ -25,6 +26,10 @@ trait PsrContainerTrait
     public function get(
         string $id
     ): mixed {
+        if (!$this->has($id)) {
+            throw new NotFoundException("No entry found for [$id].");
+        }
+
         try {
             return $this->make($id);
         } catch (NotFoundException $e) {
@@ -48,6 +53,10 @@ trait PsrContainerTrait
     ): bool {
         $id = $this->aliases[$id] ?? $id;
 
-        return isset($this->bindings[$id]) || isset($this->instances[$id]);
+        if (isset($this->bindings[$id]) || array_key_exists($id, $this->instances)) {
+            return true;
+        }
+
+        return class_exists($id) && (new ReflectionClass($id))->isInstantiable();
     }
 }

@@ -140,15 +140,15 @@ class Container implements ContainerInterface, ArrayAccess
             throw new ContainerException('Circular dependency detected: ' . implode(' -> ', $cycle) . '.');
         }
 
-        foreach ($this->beforeResolveHooks as $hook) {
-            $hook($abstract, $parameters);
-        }
-
         $this->resolving[$abstract] = true;
         $this->resolutionStack[] = $abstract;
         try {
+            foreach ($this->beforeResolveHooks as $hook) {
+                $hook($abstract, $parameters);
+            }
+
             $sharedBinding = isset($this->bindings[$abstract]) && $this->bindings[$abstract]['shared'];
-            if (isset($this->instances[$abstract])) {
+            if (array_key_exists($abstract, $this->instances)) {
                 $instance = $this->instances[$abstract];
             } elseif (!isset($this->bindings[$abstract])) {
                 if (!class_exists($abstract)) {
@@ -163,7 +163,7 @@ class Container implements ContainerInterface, ArrayAccess
 
             foreach ($this->afterResolveHooks as $hook) {
                 $modifiedInstance = $hook(
-                    (object) $instance,
+                    $instance,
                     $abstract,
                     $parameters
                 );

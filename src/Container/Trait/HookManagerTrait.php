@@ -17,7 +17,7 @@ trait HookManagerTrait
     protected array $beforeResolveHooks = [];
 
     /**
-     * @var list<callable(object, string, array<string, mixed>): ?object>
+     * @var list<callable(mixed, string, array<string, mixed>): mixed>
      */
     protected array $afterResolveHooks = [];
 
@@ -36,7 +36,7 @@ trait HookManagerTrait
     /**
      * Register a hook to be executed after resolving a dependency.
      *
-     * @param callable(object, string, array<string, mixed>): ?object $hook
+     * @param callable(mixed, string, array<string, mixed>): mixed $hook
      * @return void
      */
     public function addAfterResolve(

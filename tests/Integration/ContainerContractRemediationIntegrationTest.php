@@ -110,11 +110,11 @@ final class ContainerContractRemediationIntegrationTest extends TestCase
         $freshScope->make(ScopeConsumer::class);
     }
 
-    public function test_has_only_advertises_explicit_entries_while_get_autowires_classes(): void
+    public function test_has_reports_autowireable_entries_that_get_can_return(): void
     {
         $container = new Container();
 
-        $this->assertFalse($container->has(AutowireableUnboundEntry::class));
+        $this->assertTrue($container->has(AutowireableUnboundEntry::class));
         $this->assertInstanceOf(AutowireableUnboundEntry::class, $container->get(AutowireableUnboundEntry::class));
         $this->assertFalse($container->has('missing.entry'));
     }
