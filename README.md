@@ -28,10 +28,12 @@ lazy relationship is genuinely required.
 ## Retained state and scopes
 
 Rebinding an identifier always discards a previously retained shared value for
-that identifier. `instance()` replaces the retained value directly. `has()` is
-limited to explicit bindings, instances, and aliases; autowireable classes may
-still be resolved through `make()` or `get()` but are not advertised as bound
-entries.
+that identifier. `instance()` replaces the retained value directly, including
+when that value is `null`; a shared factory that returns `null` is still invoked
+only once. `has()` reports explicit bindings, instances, aliases, and existing
+classes that the container can instantiate through autowiring. Consequently,
+an identifier rejected by `has()` is also rejected by PSR-11 `get()` with a
+`NotFoundException`.
 
 `scope()` retains a named child container. Use `resetScope($name)` at a
 lifecycle boundary to discard that scope's retained values while preserving its
@@ -39,6 +41,24 @@ local bindings and configuration. Use `disposeScope($name)` when the scope and
 its configuration must be removed completely. `resetContainer()` clears all
 registrations, retained values, aliases, scopes, hooks, tags, contextual and
 union-type configuration, reflection metadata, and external cached definitions.
+A scope resolves its own aliases before consulting its parent, so a local alias
+shadows a parent alias with the same identifier. Scoped instances and shared
+bindings retain `null` with the same semantics as the root container.
+
+## Callable invocation and resolution hooks
+
+`call()` accepts PHP callables and injects their parameters. Public static
+methods may be passed as `[Utility::class, 'method']` or
+`Utility::class . '::method'`; neither form constructs the declaring class.
+Closures, function names, invokable objects, and object-method callables retain
+their normal PHP semantics.
+
+The resolution stack is established before before-resolve hooks run. Recursive
+resolution from a before-hook therefore raises the same controlled
+`ContainerException` as a constructor cycle, and failures always clear the
+transient resolution state. After-resolve hooks receive the resolved `mixed`
+value without an implicit object cast. Returning a non-`null` value replaces the
+resolution result; returning `null` keeps the current result.
 
 Properties marked with `#[Inject]` must be non-readonly properties with one
 non-built-in named type. Untyped, built-in, union, intersection, and readonly

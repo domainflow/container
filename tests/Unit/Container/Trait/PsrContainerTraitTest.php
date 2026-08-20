@@ -50,20 +50,41 @@ final class PsrContainerTraitTest extends TestCase
      */
     public function test_get_wraps_exceptions_in_ContainerException(): void
     {
-        $containerMock = $this->getMockBuilder(Container::class)
-            ->onlyMethods(['make'])
-            ->getMock();
-
-        // Simulate an unexpected error inside `make()`
-        $containerMock->expects($this->once())
-            ->method('make')
-            ->with('FaultyService')
-            ->willThrowException(new RuntimeException("Something went wrong"));
+        $this->container->bind('FaultyService', static function (): never {
+            throw new RuntimeException("Something went wrong");
+        });
 
         $this->expectException(ContainerException::class);
         $this->expectExceptionMessage("Error while retrieving the entry 'FaultyService': Something went wrong");
 
-        $containerMock->get('FaultyService');
+        $this->container->get('FaultyService');
+    }
+
+    public function test_get_preserves_NotFoundException_thrown_during_resolution(): void
+    {
+        $expected = new NotFoundException('Dependency disappeared during resolution.');
+        $container = new class($expected) extends Container {
+            public function __construct(private readonly NotFoundException $failure)
+            {
+            }
+
+            public function has(string $id): bool
+            {
+                return true;
+            }
+
+            public function make(string $abstract, array $parameters = []): mixed
+            {
+                throw $this->failure;
+            }
+        };
+
+        try {
+            $container->get('TransientService');
+            $this->fail('Expected the resolution failure to be rethrown.');
+        } catch (NotFoundException $actual) {
+            $this->assertSame($expected, $actual);
+        }
     }
 
     public function test_has_returns_true_for_registered_service(): void

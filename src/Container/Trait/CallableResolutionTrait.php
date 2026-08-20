@@ -63,17 +63,34 @@ trait CallableResolutionTrait
             foreach ($refMethod->getParameters() as $param) {
                 $deps[] = $this->resolveParameter($param, $parameters, $refMethod->getDeclaringClass()->getName());
             }
-            $instance = is_object($classOrObject) ? $classOrObject : $this->make((string) $classOrObject);
-            if (!is_object($instance)) {
-                throw new ContainerException("Callable resolution error: Expected instance to be an object.");
+            if ($refMethod->isStatic()) {
+                return $refMethod->invokeArgs(null, $deps);
             }
 
-            return $refMethod->invokeArgs($instance, $deps);
+            $instance = is_object($classOrObject) ? $classOrObject : $this->make((string) $classOrObject);
+
+            return $refMethod->invokeArgs(
+                is_object($instance) ? $instance : throw new ContainerException(
+                    'Callable resolution error: Expected instance to be an object.'
+                ),
+                $deps
+            );
+        }
+
+        if (is_string($callable) && str_contains($callable, '::')) {
+            [$class, $method] = explode('::', $callable, 2);
+            $refMethod = new ReflectionMethod($class, $method);
+            $deps = [];
+            foreach ($refMethod->getParameters() as $param) {
+                $deps[] = $this->resolveParameter($param, $parameters, $refMethod->getDeclaringClass()->getName());
+            }
+
+            return $refMethod->invokeArgs(null, $deps);
         }
 
         // PHP's `callable` type guarantees the only remaining shape here is a
-        // function name or "Class::method" string; an invokable object already
-        // matched the first branch above.
+        // function name or closure; method strings and invokable objects already
+        // matched the branches above.
         assert(is_string($callable) || $callable instanceof Closure);
         $refFunc = new ReflectionFunction($callable);
         $deps = [];
