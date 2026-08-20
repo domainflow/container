@@ -48,9 +48,10 @@ trait ScopeTrait
                 public function has(mixed $id): bool
                 {
                     $id = Container::keyToString($id);
+                    $id = $this->aliases[$id] ?? $id;
 
                     return isset($this->bindings[$id])
-                        || isset($this->instances[$id])
+                        || array_key_exists($id, $this->instances)
                         || $this->parent->has($id);
                 }
 
@@ -61,14 +62,15 @@ trait ScopeTrait
                 public function get(mixed $id): mixed
                 {
                     $id = Container::keyToString($id);
-                    if (isset($this->instances[$id])) {
+                    $id = $this->aliases[$id] ?? $id;
+                    if (array_key_exists($id, $this->instances)) {
                         return $this->instances[$id];
                     }
                     if (isset($this->bindings[$id])) {
                         return parent::get($id);
                     }
                     $parentId = $this->parent->aliases[$id] ?? $id;
-                    if (isset($this->parent->bindings[$parentId]) || isset($this->parent->instances[$parentId])) {
+                    if (isset($this->parent->bindings[$parentId]) || array_key_exists($parentId, $this->parent->instances)) {
                         return $this->parent->get($id);
                     }
                     if (!class_exists($id)) {
@@ -86,14 +88,14 @@ trait ScopeTrait
                 public function make(string $abstract, array $parameters = []): mixed
                 {
                     $abstract = $this->aliases[$abstract] ?? $abstract;
-                    if (isset($this->instances[$abstract])) {
+                    if (array_key_exists($abstract, $this->instances)) {
                         return $this->instances[$abstract];
                     }
                     if (isset($this->bindings[$abstract])) {
                         return parent::make($abstract, $parameters);
                     }
                     $parentAbstract = $this->parent->aliases[$abstract] ?? $abstract;
-                    if (isset($this->parent->bindings[$parentAbstract]) || isset($this->parent->instances[$parentAbstract])) {
+                    if (isset($this->parent->bindings[$parentAbstract]) || array_key_exists($parentAbstract, $this->parent->instances)) {
                         return $this->parent->make($abstract, $parameters);
                     }
                     if (!class_exists($abstract)) {

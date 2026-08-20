@@ -35,17 +35,14 @@ final class CallableResolutionTraitTest extends TestCase
     /**
      * @throws Throwable
      */
-    public function test_callThrowsContainerExceptionForNonObjectInstance(): void
+    public function test_callDoesNotResolveAnInstanceForAStaticMethod(): void
     {
         $container = new class() extends Container {
-            public function make(string $abstract, array $parameters = []): string
+            public function make(string $abstract, array $parameters = []): never
             {
-                return 'notAnObject'; // Force the failure branch.
+                throw new ContainerException('Static callables must not resolve an instance.');
             }
         };
-
-        $this->expectException(ContainerException::class);
-        $this->expectExceptionMessage("Callable resolution error: Expected instance to be an object.");
 
         $dummy = new class() {
             public static function foo(): string
@@ -53,7 +50,8 @@ final class CallableResolutionTraitTest extends TestCase
                 return 'foo';
             }
         };
-        $container->call([get_class($dummy), 'foo']);
+
+        $this->assertSame('foo', $container->call([get_class($dummy), 'foo']));
     }
 
     /**
