@@ -55,6 +55,12 @@ trait ScopeTrait
                         || $this->parent->has($id);
                 }
 
+                public function hasExplicitRegistration(string $id): bool
+                {
+                    return parent::hasExplicitRegistration($id)
+                        || $this->parent->hasExplicitRegistration($id);
+                }
+
                 /**
                  * @param mixed $id
                  * @return mixed

@@ -33,7 +33,12 @@ when that value is `null`; a shared factory that returns `null` is still invoked
 only once. `has()` reports explicit bindings, instances, aliases, and existing
 classes that the container can instantiate through autowiring. Consequently,
 an identifier rejected by `has()` is also rejected by PSR-11 `get()` with a
-`NotFoundException`.
+`NotFoundException`. Use `hasExplicitRegistration()` when the distinction
+matters: it reports only identifiers configured through `bind()`, `singleton()`,
+`instance()`, or `alias()`, without resolving a service, executing a factory,
+autoloading a class, or using Reflection. An alias is an explicit registration
+under its own identifier; querying its target reports only the target's own
+registration state.
 
 `scope()` retains a named child container. Use `resetScope($name)` at a
 lifecycle boundary to discard that scope's retained values while preserving its
@@ -43,7 +48,9 @@ registrations, retained values, aliases, scopes, hooks, tags, contextual and
 union-type configuration, reflection metadata, and external cached definitions.
 A scope resolves its own aliases before consulting its parent, so a local alias
 shadows a parent alias with the same identifier. Scoped instances and shared
-bindings retain `null` with the same semantics as the root container.
+bindings retain `null` with the same semantics as the root container. Explicit
+registrations visible through the parent fallback are also reported by
+`hasExplicitRegistration()` on the scope.
 
 ## Callable invocation and resolution hooks
 
