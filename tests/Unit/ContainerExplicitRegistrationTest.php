@@ -45,6 +45,7 @@ final class ContainerExplicitRegistrationTest extends TestCase
 
         $container->bind(ExplicitRegistrationAutowireable::class);
 
+        $this->assertTrue($container->hasExplicitRegistration('service.alias'));
         $this->assertTrue($container->hasExplicitRegistration(ExplicitRegistrationAutowireable::class));
     }
 
