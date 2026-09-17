@@ -38,6 +38,19 @@ trait BindingManagerTrait
     protected array $cacheableBindings = [];
 
     /**
+     * Determine whether the exact identifier was explicitly registered.
+     *
+     * This check does not resolve aliases or services, execute factories,
+     * autoload classes, use Reflection, or mutate retained container state.
+     */
+    public function hasExplicitRegistration(string $id): bool
+    {
+        return array_key_exists($id, $this->bindings)
+            || array_key_exists($id, $this->instances)
+            || array_key_exists($id, $this->aliases);
+    }
+
+    /**
      * Bind an abstract type to a concrete implementation.
      *
      * @param string $abstract
